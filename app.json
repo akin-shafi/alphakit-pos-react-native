@@ -1,0 +1,35 @@
+{
+  "expo": {
+    "name": "Mobile POS",
+    "slug": "mobile-pos-app",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "light",
+    "splash": {
+      "image": "./assets/splash.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#ffffff"
+    },
+    "assetBundlePatterns": ["**/*"],
+    "android": {
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#ffffff"
+      },
+      "package": "com.yourcompany.mobilepos",
+      "permissions": ["BLUETOOTH", "BLUETOOTH_ADMIN", "BLUETOOTH_CONNECT", "INTERNET", "ACCESS_NETWORK_STATE"]
+    },
+    "plugins": [
+      [
+        "expo-build-properties",
+        {
+          "android": {
+            "minSdkVersion": 21,
+            "targetSdkVersion": 34
+          }
+        }
+      ]
+    ]
+  }
+}
