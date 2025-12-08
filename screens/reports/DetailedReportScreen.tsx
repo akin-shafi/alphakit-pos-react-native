@@ -1,25 +1,31 @@
 "use client"
 
-import type React from "react"
-import { useState, useMemo } from "react"
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert } from "react-native"
-import { Ionicons } from "@expo/vector-icons"
+import { useState, useMemo, useRef } from "react"
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert, Dimensions, SafeAreaView } from "react-native"
+import { Ionicons, Feather } from "@expo/vector-icons"
+import { useNavigation } from "@react-navigation/native"
 import * as Print from "expo-print"
 import * as Sharing from "expo-sharing"
+import { Colors } from "../../constants/Colors"
 import { useAuth } from "../../contexts/AuthContext"
 import type { Sale } from "../../types"
-import { Colors } from "../../constants/Colors"
-import { Typography } from "../../constants/Typography"
+import PagerView from "react-native-pager-view"
+import { SummaryCard } from "@/components/reports/SummaryCard"
+import { DateRangeModal } from "@/components/reports/DateRangeModal"
 
-export const DetailedReportScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
-  const { business, user } = useAuth()
-  const [startDate, setStartDate] = useState(new Date())
+const { width, height } = Dimensions.get("window")
+
+export default function DetailedReportScreen() {
+  const navigation = useNavigation()
+  const { business } = useAuth()
+  const [startDate, setStartDate] = useState(new Date(Date.now() - 7 * 24 * 60 * 60 * 1000))
   const [endDate, setEndDate] = useState(new Date())
   const [isGenerating, setIsGenerating] = useState(false)
-  const [currentPage, setCurrentPage] = useState(1)
+  const [currentPage, setCurrentPage] = useState(0)
+  const [showDatePicker, setShowDatePicker] = useState(false)
+  const pagerRef = useRef<PagerView>(null)
   const ITEMS_PER_PAGE = 10
 
-  // Mock transactions data - in production this would come from API/database
   const mockTransactions: Sale[] = [
     {
       id: "TXN001",
@@ -38,10 +44,10 @@ export const DetailedReportScreen: React.FC<{ navigation: any }> = ({ navigation
       tax: 0.8,
       discount: 0,
       total: 8.8,
-      paymentMethod: "cash",
-      status: "completed",
+      paymentMethod: "cash" as const,
+      status: "completed" as const,
       createdAt: new Date(),
-      syncStatus: "synced",
+      syncStatus: "synced" as const,
     },
     {
       id: "TXN002",
@@ -55,10 +61,10 @@ export const DetailedReportScreen: React.FC<{ navigation: any }> = ({ navigation
       tax: 0.25,
       discount: 0,
       total: 2.75,
-      paymentMethod: "card",
-      status: "completed",
+      paymentMethod: "card" as const,
+      status: "completed" as const,
       createdAt: new Date(Date.now() - 3600000),
-      syncStatus: "synced",
+      syncStatus: "synced" as const,
     },
     {
       id: "TXN003",
@@ -76,10 +82,10 @@ export const DetailedReportScreen: React.FC<{ navigation: any }> = ({ navigation
       tax: 1.35,
       discount: 0,
       total: 14.85,
-      paymentMethod: "cash",
-      status: "completed",
+      paymentMethod: "cash" as const,
+      status: "completed" as const,
       createdAt: new Date(Date.now() - 7200000),
-      syncStatus: "synced",
+      syncStatus: "synced" as const,
     },
     ...Array.from({ length: 27 }, (_, i) => ({
       id: `TXN${String(i + 4).padStart(3, "0")}`,
@@ -97,383 +103,365 @@ export const DetailedReportScreen: React.FC<{ navigation: any }> = ({ navigation
       tax: 0.5,
       discount: 0,
       total: 5.5,
-      paymentMethod: i % 2 === 0 ? "cash" : "card",
-      status: "completed",
+      paymentMethod: (i % 2 === 0 ? "cash" : "card") as "cash" | "card",
+      status: "completed" as const,
       createdAt: new Date(Date.now() - i * 3600000),
-      syncStatus: "synced",
+      syncStatus: "synced" as const,
     })),
   ]
 
-  const totalPages = Math.ceil(mockTransactions.length / ITEMS_PER_PAGE)
-  const paginatedTransactions = useMemo(() => {
-    const startIndex = (currentPage - 1) * ITEMS_PER_PAGE
-    const endIndex = startIndex + ITEMS_PER_PAGE
-    return mockTransactions.slice(startIndex, endIndex)
-  }, [currentPage])
+  const summary = useMemo(() => {
+    const totalSales = mockTransactions.reduce((sum, txn) => sum + txn.total, 0)
+    const totalTax = mockTransactions.reduce((sum, txn) => sum + txn.tax, 0)
+    const totalDiscount = mockTransactions.reduce((sum, txn) => sum + txn.discount, 0)
+    const transactionCount = mockTransactions.length
 
-  const totalSales = mockTransactions.reduce((sum, t) => sum + t.total, 0)
-  const totalTax = mockTransactions.reduce((sum, t) => sum + t.tax, 0)
-  const totalDiscount = mockTransactions.reduce((sum, t) => sum + t.discount, 0)
+    return {
+      totalSales,
+      totalTax,
+      totalDiscount,
+      transactionCount,
+      averageSale: transactionCount > 0 ? totalSales / transactionCount : 0,
+    }
+  }, [])
 
-  const generatePDFContent = () => {
-    return `
-      <!DOCTYPE html>
-      <html>
-      <head>
-        <meta charset="utf-8">
-        <style>
-          body {
-            font-family: Arial, sans-serif;
-            padding: 40px;
-            color: #1f2937;
-          }
-          .header {
-            text-align: center;
-            margin-bottom: 40px;
-            border-bottom: 2px solid #0d5963;
-            padding-bottom: 20px;
-          }
-          .header h1 {
-            color: #0d5963;
-            margin: 0;
-            font-size: 28px;
-          }
-          .header p {
-            color: #6b7280;
-            margin: 5px 0;
-          }
-          .summary {
-            background: #f3f4f6;
-            padding: 20px;
-            border-radius: 8px;
-            margin-bottom: 30px;
-          }
-          .summary-grid {
-            display: grid;
-            grid-template-columns: repeat(3, 1fr);
-            gap: 20px;
-          }
-          .summary-item {
-            text-align: center;
-          }
-          .summary-label {
-            color: #6b7280;
-            font-size: 12px;
-            text-transform: uppercase;
-            margin-bottom: 5px;
-          }
-          .summary-value {
-            color: #0d5963;
-            font-size: 24px;
-            font-weight: bold;
-          }
-          .transactions {
-            margin-top: 30px;
-          }
-          .transactions h2 {
-            color: #1f2937;
-            margin-bottom: 20px;
-          }
-          table {
-            width: 100%;
-            border-collapse: collapse;
-          }
-          th {
-            background: #0d5963;
-            color: white;
-            padding: 12px;
-            text-align: left;
-            font-size: 12px;
-            text-transform: uppercase;
-          }
-          td {
-            padding: 12px;
-            border-bottom: 1px solid #e5e7eb;
-          }
-          tr:nth-child(even) {
-            background: #f9fafb;
-          }
-          .footer {
-            margin-top: 40px;
-            text-align: center;
-            color: #6b7280;
-            font-size: 12px;
-            border-top: 1px solid #e5e7eb;
-            padding-top: 20px;
-          }
-        </style>
-      </head>
-      <body>
-        <div class="header">
-          <h1>${business?.name || "Demo Store"}</h1>
-          <p>Sales Report</p>
-          <p>${startDate.toLocaleDateString()} - ${endDate.toLocaleDateString()}</p>
-        </div>
+  const paginatedData = useMemo(() => {
+    const pages = []
+    for (let i = 0; i < mockTransactions.length; i += ITEMS_PER_PAGE) {
+      pages.push(mockTransactions.slice(i, i + ITEMS_PER_PAGE))
+    }
+    return pages
+  }, [])
 
-        <div class="summary">
-          <div class="summary-grid">
-            <div class="summary-item">
-              <div class="summary-label">Total Sales</div>
-              <div class="summary-value">$${totalSales.toFixed(2)}</div>
-            </div>
-            <div class="summary-item">
-              <div class="summary-label">Total Tax</div>
-              <div class="summary-value">$${totalTax.toFixed(2)}</div>
-            </div>
-            <div class="summary-item">
-              <div class="summary-label">Transactions</div>
-              <div class="summary-value">${mockTransactions.length}</div>
-            </div>
-          </div>
-        </div>
+  const totalPages = paginatedData.length
 
-        <div class="transactions">
-          <h2>All Transaction Details (${mockTransactions.length} transactions)</h2>
-          <table>
-            <thead>
-              <tr>
-                <th>#</th>
-                <th>Transaction ID</th>
-                <th>Date & Time</th>
-                <th>Items</th>
-                <th>Payment</th>
-                <th>Amount</th>
-              </tr>
-            </thead>
-            <tbody>
-              ${mockTransactions
-                .map(
-                  (txn, index) => `
-                <tr>
-                  <td>${index + 1}</td>
-                  <td>${txn.id}</td>
-                  <td>${new Date(txn.createdAt).toLocaleString()}</td>
-                  <td>${txn.items.length} items</td>
-                  <td style="text-transform: capitalize;">${txn.paymentMethod}</td>
-                  <td><strong>$${txn.total.toFixed(2)}</strong></td>
-                </tr>
-              `,
-                )
-                .join("")}
-            </tbody>
-          </table>
-        </div>
-
-        <div class="footer">
-          <p>Generated by ${user?.name || "User"} on ${new Date().toLocaleString()}</p>
-          <p>Powered by POS Terminal</p>
-        </div>
-      </body>
-      </html>
-    `
-  }
-
-  const handleDownloadPDF = async () => {
+  const generatePDFReport = async () => {
+    setIsGenerating(true)
     try {
-      setIsGenerating(true)
-      const html = generatePDFContent()
-      const { uri } = await Print.printToFileAsync({ html })
+      const transactionsHTML = mockTransactions
+        .map(
+          (txn, index) => `
+        <tr style="border-bottom: 1px solid #E5E7EB;">
+          <td style="padding: 12px;">${index + 1}</td>
+          <td style="padding: 12px;">${txn.id}</td>
+          <td style="padding: 12px;">${new Date(txn.createdAt).toLocaleString()}</td>
+          <td style="padding: 12px; text-transform: capitalize;">${txn.paymentMethod}</td>
+          <td style="padding: 12px; text-align: right; font-weight: bold;">$${txn.total.toFixed(2)}</td>
+        </tr>
+      `,
+        )
+        .join("")
 
-      Alert.alert("Success", `Report with all ${mockTransactions.length} transactions downloaded successfully`, [
-        { text: "OK" },
-      ])
+      const html = `
+        <!DOCTYPE html>
+        <html>
+          <head>
+            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+            <style>
+              body { font-family: Arial, sans-serif; padding: 20px; }
+              h1 { color: #0D5963; margin-bottom: 10px; }
+              .header { margin-bottom: 30px; border-bottom: 2px solid #0D5963; padding-bottom: 20px; }
+              .info { color: #6B7280; margin: 5px 0; }
+              .summary { display: flex; justify-content: space-between; margin: 20px 0; }
+              .summary-card { background: #F9FAFB; padding: 15px; border-radius: 8px; flex: 1; margin: 0 10px; text-align: center; }
+              .summary-label { color: #6B7280; font-size: 14px; }
+              .summary-value { color: #0A0A0A; font-size: 24px; font-weight: bold; margin-top: 5px; }
+              table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+              th { background: #0D5963; color: white; padding: 12px; text-align: left; }
+              td { padding: 12px; }
+              .footer { margin-top: 40px; padding-top: 20px; border-top: 2px solid #E5E7EB; text-align: center; color: #6B7280; }
+            </style>
+          </head>
+          <body>
+            <div class="header">
+              <h1>${business?.name || "POS Terminal"}</h1>
+              <p class="info">Sales Report</p>
+              <p class="info">Period: ${startDate.toLocaleDateString()} - ${endDate.toLocaleDateString()}</p>
+              <p class="info">Generated: ${new Date().toLocaleString()}</p>
+            </div>
+
+            <div class="summary">
+              <div class="summary-card">
+                <div class="summary-label">Total Sales</div>
+                <div class="summary-value">$${summary.totalSales.toFixed(2)}</div>
+              </div>
+              <div class="summary-card">
+                <div class="summary-label">Transactions</div>
+                <div class="summary-value">${summary.transactionCount}</div>
+              </div>
+              <div class="summary-card">
+                <div class="summary-label">Avg. Sale</div>
+                <div class="summary-value">$${summary.averageSale.toFixed(2)}</div>
+              </div>
+              <div class="summary-card">
+                <div class="summary-label">Tax Collected</div>
+                <div class="summary-value">$${summary.totalTax.toFixed(2)}</div>
+              </div>
+            </div>
+
+            <h2 style="color: #0D5963; margin-top: 30px;">All Transactions (${mockTransactions.length})</h2>
+            <table>
+              <thead>
+                <tr>
+                  <th>#</th>
+                  <th>Transaction ID</th>
+                  <th>Date & Time</th>
+                  <th>Payment Method</th>
+                  <th style="text-align: right;">Amount</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${transactionsHTML}
+              </tbody>
+            </table>
+
+            <div class="footer">
+              <p>${business?.name || "POS Terminal"} - Detailed Sales Report</p>
+              <p>This report contains all ${mockTransactions.length} transactions for the selected period</p>
+            </div>
+          </body>
+        </html>
+      `
+
+      const { uri } = await Print.printToFileAsync({ html })
+      return uri
     } catch (error) {
-      Alert.alert("Error", "Failed to generate PDF")
-      console.error("[v0] PDF generation error:", error)
+      console.error("PDF generation error:", error)
+      Alert.alert("Error", "Failed to generate PDF report")
     } finally {
       setIsGenerating(false)
     }
   }
 
-  const handleSharePDF = async () => {
-    try {
-      setIsGenerating(true)
-      const html = generatePDFContent()
-      const { uri } = await Print.printToFileAsync({ html })
-
+  const shareReport = async () => {
+    const uri = await generatePDFReport()
+    if (uri) {
       const canShare = await Sharing.isAvailableAsync()
-      if (!canShare) {
+      if (canShare) {
+        await Sharing.shareAsync(uri, {
+          mimeType: "application/pdf",
+          dialogTitle: "Share Sales Report",
+          UTI: "com.adobe.pdf",
+        })
+      } else {
         Alert.alert("Error", "Sharing is not available on this device")
-        return
       }
-
-      await Sharing.shareAsync(uri, {
-        mimeType: "application/pdf",
-        dialogTitle: `Share Sales Report (${mockTransactions.length} transactions)`,
-        UTI: "com.adobe.pdf",
-      })
-    } catch (error) {
-      Alert.alert("Error", "Failed to share PDF")
-      console.error("[v0] Share error:", error)
-    } finally {
-      setIsGenerating(false)
     }
   }
 
   const goToNextPage = () => {
-    if (currentPage < totalPages) {
-      setCurrentPage(currentPage + 1)
+    if (currentPage < totalPages - 1) {
+      pagerRef.current?.setPage(currentPage + 1)
     }
   }
 
-  const goToPrevPage = () => {
-    if (currentPage > 1) {
-      setCurrentPage(currentPage - 1)
+  const goToPreviousPage = () => {
+    if (currentPage > 0) {
+      pagerRef.current?.setPage(currentPage - 1)
     }
   }
 
   return (
-    <View style={styles.container}>
-      {/* Header */}
-      <View style={styles.header}>
-        <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
-          <Ionicons name="arrow-back" size={24} color={Colors.gray900} />
-        </TouchableOpacity>
-        <Text style={styles.headerTitle}>Detailed Report</Text>
-        <View style={styles.placeholder} />
-      </View>
-
-      <ScrollView contentContainerStyle={styles.content}>
-        {/* Date Range Filter */}
-        <View style={styles.filterCard}>
-          <Text style={styles.filterTitle}>Filter by Date Range</Text>
-          <View style={styles.dateRange}>
-            <TouchableOpacity style={styles.dateButton}>
-              <Ionicons name="calendar-outline" size={20} color={Colors.teal} />
-              <View style={styles.dateInfo}>
-                <Text style={styles.dateLabel}>Start Date</Text>
-                <Text style={styles.dateValue}>{startDate.toLocaleDateString()}</Text>
-              </View>
-            </TouchableOpacity>
-            <Ionicons name="arrow-forward" size={20} color={Colors.gray400} />
-            <TouchableOpacity style={styles.dateButton}>
-              <Ionicons name="calendar-outline" size={20} color={Colors.teal} />
-              <View style={styles.dateInfo}>
-                <Text style={styles.dateLabel}>End Date</Text>
-                <Text style={styles.dateValue}>{endDate.toLocaleDateString()}</Text>
-              </View>
-            </TouchableOpacity>
+    <SafeAreaView style={styles.safeArea}>
+      <View style={styles.container}>
+        {/* Header */}
+        <View style={styles.header}>
+          <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
+            <Ionicons name="arrow-back" size={24} color={Colors.gray900} />
+          </TouchableOpacity>
+          <View style={styles.headerContent}>
+            <Text style={styles.title}>Detailed Report</Text>
+            <Text style={styles.subtitle}>{business?.name || "Demo Store"}</Text>
           </View>
         </View>
 
-        {/* Summary Cards */}
-        <View style={styles.summaryGrid}>
-          <View style={styles.summaryCard}>
-            <Text style={styles.summaryLabel}>Total Sales</Text>
-            <Text style={styles.summaryValue}>${totalSales.toFixed(2)}</Text>
-            <Text style={styles.summarySubtext}>{mockTransactions.length} transactions</Text>
-          </View>
-          <View style={styles.summaryCard}>
-            <Text style={styles.summaryLabel}>Total Tax</Text>
-            <Text style={styles.summaryValue}>${totalTax.toFixed(2)}</Text>
-          </View>
-          <View style={styles.summaryCard}>
-            <Text style={styles.summaryLabel}>Discounts</Text>
-            <Text style={styles.summaryValue}>${totalDiscount.toFixed(2)}</Text>
-          </View>
-        </View>
+        <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
+          {/* Date Range Filter */}
+          <TouchableOpacity style={styles.dateRangeButton} onPress={() => setShowDatePicker(true)}>
+            <Feather name="calendar" size={20} color={Colors.teal} />
+            <View style={styles.dateRangeText}>
+              <Text style={styles.dateRangeLabel}>Date Range</Text>
+              <Text style={styles.dateRangeValue}>
+                {startDate.toLocaleDateString()} - {endDate.toLocaleDateString()}
+              </Text>
+            </View>
+            <Feather name="chevron-down" size={20} color={Colors.gray600} />
+          </TouchableOpacity>
 
-        {/* Transactions List with Pagination */}
-        <View style={styles.transactionsCard}>
-          <View style={styles.transactionsHeader}>
-            <Text style={styles.transactionsTitle}>All Transactions ({mockTransactions.length} total)</Text>
-            <Text style={styles.pageInfo}>
-              Page {currentPage} of {totalPages}
+          <View style={styles.summaryGrid}>
+            <SummaryCard
+              icon="trending-up"
+              iconColor={Colors.success}
+              iconBgColor={Colors.green50}
+              label="Total Sales"
+              value={`$${summary.totalSales.toFixed(2)}`}
+              subtext={`${summary.transactionCount} transactions`}
+            />
+            <SummaryCard
+              icon="shopping-bag"
+              iconColor={Colors.info}
+              iconBgColor={Colors.blue50}
+              label="Avg. Sale"
+              value={`$${summary.averageSale.toFixed(2)}`}
+              subtext="per transaction"
+            />
+            <SummaryCard
+              icon="percent"
+              iconColor={Colors.purple}
+              iconBgColor={Colors.purple50}
+              label="Tax"
+              value={`$${summary.totalTax.toFixed(2)}`}
+              subtext="collected"
+            />
+            <SummaryCard
+              icon="tag"
+              iconColor={Colors.error}
+              iconBgColor={Colors.red50}
+              label="Discounts"
+              value={`$${summary.totalDiscount.toFixed(2)}`}
+              subtext="given"
+            />
+          </View>
+
+          {/* Summary Cards */}
+          <View style={styles.infoBox}>
+            <Ionicons name="information-circle" size={20} color={Colors.info} />
+            <Text style={styles.infoText}>
+              All {mockTransactions.length} transactions will be included in the generated PDF report
             </Text>
           </View>
 
-          <View style={styles.transactionsList}>
-            {paginatedTransactions.map((transaction, index) => (
-              <View key={transaction.id} style={styles.transactionRow}>
-                <View style={styles.transactionLeft}>
-                  <View style={styles.transactionHeader}>
-                    <Text style={styles.transactionNumber}>#{(currentPage - 1) * ITEMS_PER_PAGE + index + 1}</Text>
-                    <Text style={styles.transactionId}>{transaction.id}</Text>
-                  </View>
-                  <Text style={styles.transactionTime}>{new Date(transaction.createdAt).toLocaleString()}</Text>
-                  <Text style={styles.transactionItems}>{transaction.items.length} items</Text>
-                </View>
-                <View style={styles.transactionRight}>
-                  <Text style={styles.transactionAmount}>${transaction.total.toFixed(2)}</Text>
-                  <View style={[styles.paymentBadge, styles[`payment${transaction.paymentMethod}`]]}>
-                    <Text style={styles.paymentText}>{transaction.paymentMethod}</Text>
-                  </View>
-                </View>
-              </View>
-            ))}
-          </View>
-
-          <View style={styles.paginationContainer}>
-            <TouchableOpacity
-              style={[styles.paginationButton, currentPage === 1 && styles.paginationButtonDisabled]}
-              onPress={goToPrevPage}
-              disabled={currentPage === 1}
-            >
-              <Ionicons name="chevron-back" size={20} color={currentPage === 1 ? Colors.gray400 : Colors.teal} />
-              <Text style={[styles.paginationButtonText, currentPage === 1 && styles.paginationButtonTextDisabled]}>
-                Previous
-              </Text>
-            </TouchableOpacity>
-
-            <View style={styles.pageIndicator}>
-              <Text style={styles.pageIndicatorText}>
-                {(currentPage - 1) * ITEMS_PER_PAGE + 1} -{" "}
-                {Math.min(currentPage * ITEMS_PER_PAGE, mockTransactions.length)} of {mockTransactions.length}
+          {/* Transactions Section with PagerView */}
+          <View style={styles.transactionsSection}>
+            <View style={styles.transactionsHeader}>
+              <Text style={styles.sectionTitle}>Transactions</Text>
+              <Text style={styles.pageIndicator}>
+                Page {currentPage + 1} of {totalPages}
               </Text>
             </View>
 
-            <TouchableOpacity
-              style={[styles.paginationButton, currentPage === totalPages && styles.paginationButtonDisabled]}
-              onPress={goToNextPage}
-              disabled={currentPage === totalPages}
+            <Text style={styles.swipeHint}>← Swipe to navigate between pages →</Text>
+
+            <PagerView
+              ref={pagerRef}
+              style={styles.pagerView}
+              initialPage={0}
+              onPageSelected={(e) => setCurrentPage(e.nativeEvent.position)}
             >
-              <Text
-                style={[styles.paginationButtonText, currentPage === totalPages && styles.paginationButtonTextDisabled]}
+              {paginatedData.map((pageTransactions, pageIndex) => (
+                <View key={`page-${pageIndex}`} style={styles.pageContainer}>
+                  <ScrollView style={styles.transactionsCard} showsVerticalScrollIndicator={false}>
+                    {pageTransactions.map((transaction) => (
+                      <TouchableOpacity key={transaction.id} style={styles.transactionItem}>
+                        <View style={styles.transactionLeft}>
+                          <Text style={styles.transactionId}>{transaction.id}</Text>
+                          <Text style={styles.transactionDate}>{new Date(transaction.createdAt).toLocaleString()}</Text>
+                          <Text style={styles.transactionMethod}>{transaction.paymentMethod.toUpperCase()}</Text>
+                        </View>
+                        <View style={styles.transactionRight}>
+                          <Text style={styles.transactionAmount}>${transaction.total.toFixed(2)}</Text>
+                          <Text style={styles.transactionItems}>{transaction.items.length} items</Text>
+                        </View>
+                      </TouchableOpacity>
+                    ))}
+                  </ScrollView>
+                </View>
+              ))}
+            </PagerView>
+
+            {/* Pagination Dots */}
+            <View style={styles.paginationDots}>
+              {paginatedData.map((_, index) => (
+                <View key={index} style={[styles.dot, index === currentPage ? styles.activeDot : styles.inactiveDot]} />
+              ))}
+            </View>
+
+            {/* Pagination Controls */}
+            <View style={styles.paginationControls}>
+              <TouchableOpacity
+                style={[styles.pageButton, currentPage === 0 && styles.pageButtonDisabled]}
+                onPress={goToPreviousPage}
+                disabled={currentPage === 0}
               >
-                Next
-              </Text>
-              <Ionicons
-                name="chevron-forward"
-                size={20}
-                color={currentPage === totalPages ? Colors.gray400 : Colors.teal}
-              />
+                <Ionicons name="chevron-back" size={20} color={currentPage === 0 ? Colors.gray400 : Colors.teal} />
+                <Text style={[styles.pageButtonText, currentPage === 0 && styles.pageButtonTextDisabled]}>
+                  Previous
+                </Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[styles.pageButton, currentPage === totalPages - 1 && styles.pageButtonDisabled]}
+                onPress={goToNextPage}
+                disabled={currentPage === totalPages - 1}
+              >
+                <Text style={[styles.pageButtonText, currentPage === totalPages - 1 && styles.pageButtonTextDisabled]}>
+                  Next
+                </Text>
+                <Ionicons
+                  name="chevron-forward"
+                  size={20}
+                  color={currentPage === totalPages - 1 ? Colors.gray400 : Colors.teal}
+                />
+              </TouchableOpacity>
+            </View>
+          </View>
+
+          {/* Action Buttons */}
+          <View style={styles.actionButtons}>
+            <TouchableOpacity
+              style={[styles.actionButton, styles.downloadButton]}
+              onPress={generatePDFReport}
+              disabled={isGenerating}
+            >
+              <Ionicons name="download-outline" size={20} color={Colors.white} />
+              <Text style={styles.actionButtonText}>{isGenerating ? "Generating..." : "Download PDF"}</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[styles.actionButton, styles.shareButton]}
+              onPress={shareReport}
+              disabled={isGenerating}
+            >
+              <Ionicons name="share-social-outline" size={20} color={Colors.white} />
+              <Text style={styles.actionButtonText}>Share via WhatsApp</Text>
             </TouchableOpacity>
           </View>
-        </View>
+        </ScrollView>
 
-        {/* Action Buttons */}
-        <View style={styles.actionsCard}>
-          <View style={styles.actionInfo}>
-            <Ionicons name="information-circle-outline" size={20} color={Colors.teal} />
-            <Text style={styles.actionInfoText}>
-              PDF will include all {mockTransactions.length} transactions, not just the current page
-            </Text>
-          </View>
-
-          <TouchableOpacity
-            style={[styles.actionButton, styles.downloadButton]}
-            onPress={handleDownloadPDF}
-            disabled={isGenerating}
-          >
-            <Ionicons name="download-outline" size={24} color={Colors.white} />
-            <Text style={styles.actionButtonText}>{isGenerating ? "Generating..." : "Download PDF"}</Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={[styles.actionButton, styles.shareButton]}
-            onPress={handleSharePDF}
-            disabled={isGenerating}
-          >
-            <Ionicons name="share-social-outline" size={24} color={Colors.white} />
-            <Text style={styles.actionButtonText}>{isGenerating ? "Generating..." : "Share via WhatsApp"}</Text>
-          </TouchableOpacity>
-        </View>
-      </ScrollView>
-    </View>
+        <DateRangeModal
+          visible={showDatePicker}
+          startDate={startDate}
+          endDate={endDate}
+          onClose={() => setShowDatePicker(false)}
+          onStartDateSelect={setStartDate}
+          onEndDateSelect={setEndDate}
+          onQuickFilter={(filter) => {
+            const today = new Date()
+            if (filter === "today") {
+              setStartDate(today)
+              setEndDate(today)
+            } else if (filter === "week") {
+              const weekStart = new Date(today)
+              weekStart.setDate(today.getDate() - today.getDay())
+              setStartDate(weekStart)
+              setEndDate(today)
+            } else if (filter === "month") {
+              const monthStart = new Date(today.getFullYear(), today.getMonth(), 1)
+              setStartDate(monthStart)
+              setEndDate(today)
+            }
+          }}
+        />
+      </View>
+    </SafeAreaView>
   )
 }
 
 const styles = StyleSheet.create({
+  safeArea: {
+    flex: 1,
+    backgroundColor: Colors.white,
+  },
   container: {
     flex: 1,
     backgroundColor: Colors.gray50,
@@ -481,255 +469,225 @@ const styles = StyleSheet.create({
   header: {
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "space-between",
-    paddingTop: 48,
+    paddingTop: 20,
+    paddingHorizontal: 16,
     paddingBottom: 16,
-    paddingHorizontal: 20,
     backgroundColor: Colors.white,
     borderBottomWidth: 1,
-    borderBottomColor: Colors.gray100,
+    borderBottomColor: Colors.gray200,
   },
   backButton: {
-    padding: 8,
+    marginRight: 12,
   },
-  headerTitle: {
-    fontSize: Typography.xl,
-    fontWeight: Typography.bold,
+  headerContent: {
+    flex: 1,
+  },
+  title: {
+    fontSize: 20,
+    fontWeight: "700",
     color: Colors.gray900,
   },
-  placeholder: {
-    width: 40,
+  subtitle: {
+    fontSize: 14,
+    color: Colors.gray600,
+    marginTop: 2,
   },
   content: {
-    padding: 16,
-    gap: 16,
+    flex: 1,
   },
-  filterCard: {
-    backgroundColor: Colors.white,
-    borderRadius: 12,
-    padding: 20,
-    borderWidth: 1,
-    borderColor: Colors.gray100,
-  },
-  filterTitle: {
-    fontSize: Typography.lg,
-    fontWeight: Typography.bold,
+
+   sectionTitle: {
+    fontSize: 16,
+    fontWeight: "600",
     color: Colors.gray900,
+    marginBottom: 12,
+  },
+  dateRangeButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    padding: 12,
+    backgroundColor: Colors.white,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: Colors.gray200,
+    gap: 8,
     marginBottom: 16,
   },
-  dateRange: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-  },
-  dateButton: {
+  dateRangeText: {
     flex: 1,
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: Colors.gray50,
-    padding: 12,
-    borderRadius: 8,
-    gap: 10,
+    flexDirection: "column",
+    marginLeft: 8,
   },
-  dateInfo: {
-    flex: 1,
-  },
-  dateLabel: {
-    fontSize: Typography.xs,
-    color: Colors.gray500,
+  dateRangeLabel: {
+    fontSize: 12,
+    color: Colors.gray600,
     marginBottom: 2,
   },
-  dateValue: {
-    fontSize: Typography.sm,
-    fontWeight: Typography.semibold,
+  dateRangeValue: {
+    fontSize: 14,
+    fontWeight: "600",
     color: Colors.gray900,
   },
   summaryGrid: {
     flexDirection: "row",
+    flexWrap: "wrap",
+    justifyContent: "space-between",
+    paddingHorizontal: 16,
     gap: 12,
+    marginBottom: 16,
   },
-  summaryCard: {
+  infoBox: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: Colors.blue50,
+    marginHorizontal: 16,
+    padding: 12,
+    borderRadius: 8,
+    gap: 8,
+    marginBottom: 16,
+  },
+  infoText: {
     flex: 1,
+    fontSize: 13,
+    color: Colors.info,
+  },
+  transactionsSection: {
     backgroundColor: Colors.white,
+    marginHorizontal: 16,
+    marginBottom: 16,
     borderRadius: 12,
     padding: 16,
-    borderWidth: 1,
-    borderColor: Colors.gray100,
-  },
-  summaryLabel: {
-    fontSize: Typography.xs,
-    color: Colors.gray600,
-    marginBottom: 8,
-  },
-  summaryValue: {
-    fontSize: Typography.xl,
-    fontWeight: Typography.bold,
-    color: Colors.teal,
-    marginBottom: 4,
-  },
-  summarySubtext: {
-    fontSize: Typography.xs,
-    color: Colors.gray500,
-  },
-  transactionsCard: {
-    backgroundColor: Colors.white,
-    borderRadius: 12,
-    padding: 20,
-    borderWidth: 1,
-    borderColor: Colors.gray100,
+    shadowColor: Colors.black,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
   },
   transactionsHeader: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
+    marginBottom: 8,
+  },
+  pageIndicator: {
+    fontSize: 14,
+    color: Colors.gray600,
+    fontWeight: "500",
+  },
+  swipeHint: {
+    fontSize: 12,
+    color: Colors.gray500,
+    textAlign: "center",
+    marginBottom: 12,
+  },
+  pagerView: {
+    height: 500,
     marginBottom: 16,
   },
-  transactionsTitle: {
-    fontSize: Typography.lg,
-    fontWeight: Typography.bold,
-    color: Colors.gray900,
+  pageContainer: {
+    flex: 1,
+    paddingHorizontal: 4,
   },
-  pageInfo: {
-    fontSize: Typography.sm,
-    color: Colors.gray600,
-    backgroundColor: Colors.gray50,
-    paddingHorizontal: 12,
-    paddingVertical: 4,
-    borderRadius: 12,
+  transactionsCard: {
+    flex: 1,
   },
-  transactionsList: {
-    gap: 12,
-  },
-  transactionRow: {
+  transactionItem: {
     flexDirection: "row",
     justifyContent: "space-between",
-    paddingVertical: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: Colors.gray100,
+    padding: 12,
+    backgroundColor: Colors.gray50,
+    borderRadius: 8,
+    marginBottom: 8,
   },
   transactionLeft: {
     flex: 1,
   },
-  transactionHeader: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
+  transactionId: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: Colors.gray900,
     marginBottom: 4,
   },
-  transactionNumber: {
-    fontSize: Typography.xs,
-    fontWeight: Typography.bold,
-    color: Colors.white,
-    backgroundColor: Colors.teal,
-    paddingHorizontal: 8,
-    paddingVertical: 2,
-    borderRadius: 4,
-  },
-  transactionId: {
-    fontSize: Typography.base,
-    fontWeight: Typography.semibold,
-    color: Colors.gray900,
-  },
-  transactionTime: {
-    fontSize: Typography.sm,
-    color: Colors.gray500,
+  transactionDate: {
+    fontSize: 12,
+    color: Colors.gray600,
     marginBottom: 2,
   },
-  transactionItems: {
-    fontSize: Typography.xs,
-    color: Colors.gray400,
+  transactionMethod: {
+    fontSize: 11,
+    color: Colors.teal,
+    fontWeight: "500",
   },
   transactionRight: {
     alignItems: "flex-end",
-    gap: 6,
   },
   transactionAmount: {
-    fontSize: Typography.lg,
-    fontWeight: Typography.bold,
+    fontSize: 16,
+    fontWeight: "700",
     color: Colors.gray900,
+    marginBottom: 4,
   },
-  paymentBadge: {
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 4,
-  },
-  paymentcash: {
-    backgroundColor: Colors.green50,
-  },
-  paymentcard: {
-    backgroundColor: Colors.blue50,
-  },
-  paymentText: {
-    fontSize: Typography.xs,
-    fontWeight: Typography.semibold,
-    textTransform: "capitalize",
-    color: Colors.gray700,
-  },
-  paginationContainer: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    marginTop: 16,
-    paddingTop: 16,
-    borderTopWidth: 1,
-    borderTopColor: Colors.gray100,
-  },
-  paginationButton: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 4,
-    paddingVertical: 8,
-    paddingHorizontal: 12,
-    borderRadius: 8,
-    backgroundColor: Colors.teal50,
-  },
-  paginationButtonDisabled: {
-    backgroundColor: Colors.gray50,
-  },
-  paginationButtonText: {
-    fontSize: Typography.sm,
-    fontWeight: Typography.semibold,
-    color: Colors.teal,
-  },
-  paginationButtonTextDisabled: {
-    color: Colors.gray400,
-  },
-  pageIndicator: {
-    paddingHorizontal: 16,
-    paddingVertical: 6,
-    backgroundColor: Colors.gray50,
-    borderRadius: 8,
-  },
-  pageIndicatorText: {
-    fontSize: Typography.sm,
+  transactionItems: {
+    fontSize: 12,
     color: Colors.gray600,
   },
-  actionsCard: {
-    gap: 12,
-    marginTop: 8,
+  paginationDots: {
+    flexDirection: "row",
+    justifyContent: "center",
+    gap: 6,
+    marginBottom: 12,
   },
-  actionInfo: {
+  dot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+  },
+  activeDot: {
+    backgroundColor: Colors.teal,
+    width: 24,
+  },
+  inactiveDot: {
+    backgroundColor: Colors.gray300,
+  },
+  paginationControls: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    gap: 12,
+  },
+  pageButton: {
+    flex: 1,
     flexDirection: "row",
     alignItems: "center",
-    gap: 10,
-    backgroundColor: Colors.teal50,
-    padding: 12,
+    justifyContent: "center",
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+    backgroundColor: Colors.gray100,
     borderRadius: 8,
-    borderWidth: 1,
-    borderColor: Colors.teal200,
+    gap: 4,
   },
-  actionInfoText: {
-    flex: 1,
-    fontSize: Typography.sm,
-    color: Colors.tealDark,
+  pageButtonDisabled: {
+    opacity: 0.4,
+  },
+  pageButtonText: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: Colors.teal,
+  },
+  pageButtonTextDisabled: {
+    color: Colors.gray400,
+  },
+  actionButtons: {
+    paddingHorizontal: 16,
+    paddingBottom: 24,
+    gap: 12,
   },
   actionButton: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-    paddingVertical: 16,
-    borderRadius: 12,
-    gap: 10,
+    paddingVertical: 14,
+    borderRadius: 10,
+    gap: 8,
   },
   downloadButton: {
     backgroundColor: Colors.teal,
@@ -738,8 +696,8 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.success,
   },
   actionButtonText: {
-    fontSize: Typography.base,
-    fontWeight: Typography.bold,
+    fontSize: 16,
+    fontWeight: "600",
     color: Colors.white,
   },
 })

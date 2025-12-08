@@ -175,13 +175,12 @@ export const ReportsScreen: React.FC<{ navigation: any }> = ({ navigation }) => 
         </View>
 
         <View style={styles.transactionsCard}>
-          <View style={styles.transactionsHeader}>
-            <Text style={styles.transactionsTitle}>Recent Transactions</Text>
-            <TouchableOpacity style={styles.generateButton} onPress={handleGenerateReport}>
-              <Ionicons name="document-text" size={20} color={Colors.white} />
-              <Text style={styles.generateButtonText}>Generate Report</Text>
-            </TouchableOpacity>
-          </View>
+          <TouchableOpacity style={styles.generateButton} onPress={handleGenerateReport}>
+            <Ionicons name="document-text" size={20} color={Colors.white} />
+            <Text style={styles.generateButtonText}>Generate Report</Text>
+          </TouchableOpacity>
+
+          <Text style={styles.transactionsTitle}>Recent Transactions</Text>
 
           {transactions.length === 0 ? (
             <View style={styles.emptyState}>
@@ -344,16 +343,12 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: Colors.gray100,
   },
-  transactionsHeader: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    marginBottom: 16,
-  },
   transactionsTitle: {
     fontSize: Typography.lg,
     fontWeight: Typography.bold,
     color: Colors.gray900,
+    marginTop: 16,
+    marginBottom: 16,
   },
   emptyState: {
     alignItems: "center",
@@ -419,14 +414,16 @@ const styles = StyleSheet.create({
   generateButton: {
     flexDirection: "row",
     alignItems: "center",
+    justifyContent: "center",
     backgroundColor: Colors.teal,
-    paddingVertical: 8,
-    paddingHorizontal: 16,
+    paddingVertical: 12,
+    paddingHorizontal: 20,
     borderRadius: 8,
-    gap: 6,
+    gap: 8,
+    width: "100%",
   },
   generateButtonText: {
-    fontSize: Typography.sm,
+    fontSize: Typography.base,
     fontWeight: Typography.semibold,
     color: Colors.white,
   },

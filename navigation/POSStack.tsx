@@ -5,7 +5,7 @@ import { CheckoutScreen } from "../screens/pos/CheckoutScreen"
 import { ExternalTerminalScreen } from "../screens/pos/ExternalTerminalScreen"
 import { InventoryScreen } from "../screens/inventory/InventoryScreen"
 import { ReportsScreen } from "../screens/reports/ReportsScreen"
-import { DetailedReportScreen } from "../screens/reports/DetailedReportScreen"
+import  DetailedReportScreen  from "../screens/reports/DetailedReportScreen"
 import { SettingsScreen } from "../screens/settings/SettingsScreen"
 import { PaymentSettingsScreen } from "../screens/settings/PaymentSettingsScreen"
 
