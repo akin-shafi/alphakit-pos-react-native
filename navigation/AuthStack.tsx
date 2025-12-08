@@ -4,6 +4,7 @@ import { WelcomeScreen } from "../screens/auth/WelcomeScreen"
 import { OnboardingScreen } from "../screens/auth/OnboardingScreen"
 import { BusinessIDScreen } from "../screens/auth/BusinessIDScreen"
 import { PINScreen } from "../screens/auth/PINScreen"
+import { CreatePINScreen } from "../screens/auth/CreatePINScreen"
 
 const Stack = createStackNavigator()
 
@@ -15,6 +16,7 @@ export const AuthStack = () => {
       <Stack.Screen name="Onboarding" component={OnboardingScreen} />
       <Stack.Screen name="BusinessID" component={BusinessIDScreen} />
       <Stack.Screen name="PIN" component={PINScreen} />
+      <Stack.Screen name="CreatePIN" component={CreatePINScreen} />
     </Stack.Navigator>
   )
 }

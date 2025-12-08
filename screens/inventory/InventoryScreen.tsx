@@ -2,131 +2,124 @@
 
 import type React from "react"
 import { useState } from "react"
-import { View, Text, StyleSheet, FlatList, TouchableOpacity, Alert } from "react-native"
+import { View, Text, StyleSheet, FlatList, TouchableOpacity } from "react-native"
 import { Ionicons } from "@expo/vector-icons"
 import { useAuth } from "../../contexts/AuthContext"
 import { useInventory } from "../../contexts/InventoryContext"
 import { RolePermissions } from "../../constants/Roles"
-import { Card } from "../../components/Card"
 import { Input } from "../../components/Input"
-import { Colors, BusinessThemes } from "../../constants/Colors"
+import { ProductDrawer } from "../../components/ProductDrawer"
+import { Colors } from "../../constants/Colors"
 import { Typography } from "../../constants/Typography"
+import type { Product } from "../../types"
 
 export const InventoryScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
   const { business, user } = useAuth()
   const { products, searchQuery, setSearchQuery, getFilteredProducts } = useInventory()
-  const [sortBy, setSortBy] = useState<"name" | "stock">("name")
 
-  const theme = business ? BusinessThemes[business.type] : BusinessThemes.default
   const canManage = user ? RolePermissions[user.role].canManageInventory : false
+  const filteredProducts = getFilteredProducts()
 
-  const filteredProducts = getFilteredProducts().sort((a, b) => {
-    if (sortBy === "name") return a.name.localeCompare(b.name)
-    return a.stock - b.stock
-  })
+  const [drawerVisible, setDrawerVisible] = useState(false)
+  const [selectedProduct, setSelectedProduct] = useState<Product | null>(null)
+  const [drawerMode, setDrawerMode] = useState<"add" | "edit">("add")
 
-  const lowStockCount = products.filter((p) => p.stock <= p.minStock).length
+  const handleAddProduct = () => {
+    setSelectedProduct(null)
+    setDrawerMode("add")
+    setDrawerVisible(true)
+  }
+
+  const handleEditProduct = (product: Product) => {
+    setSelectedProduct(product)
+    setDrawerMode("edit")
+    setDrawerVisible(true)
+  }
+
+  const handleSaveProduct = (product: Partial<Product>) => {
+    console.log("[v0] Saving product:", product)
+    // TODO: Implement actual save logic
+  }
+
+  // Category colors matching reference design
+  const getCategoryColor = (category: string) => {
+    const colorMap: Record<string, string> = {
+      Bakery: "#FEE2E2",
+      Snacks: "#D1FAE5",
+      Beverages: "#DBEAFE",
+      Dairy: "#FCE7F3",
+    }
+    return colorMap[category] || Colors.gray100
+  }
+
+  const getCategoryTextColor = (category: string) => {
+    const colorMap: Record<string, string> = {
+      Bakery: "#991B1B",
+      Snacks: "#065F46",
+      Beverages: "#1E40AF",
+      Dairy: "#831843",
+    }
+    return colorMap[category] || Colors.gray700
+  }
 
   return (
     <View style={styles.container}>
-      <View style={[styles.header, { backgroundColor: theme.primary }]}>
+      {/* Header */}
+      <View style={styles.header}>
         <View style={styles.headerTop}>
-          <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
-            <Ionicons name="arrow-back" size={24} color={Colors.white} />
-          </TouchableOpacity>
-          <Text style={styles.headerTitle}>Inventory</Text>
+          <View style={styles.headerLeft}>
+            <Text style={styles.businessName}>{business?.name || "Demo Store"}</Text>
+            <Text style={styles.productCount}>{filteredProducts.length} products</Text>
+          </View>
           {canManage && (
-            <TouchableOpacity
-              style={styles.addButton}
-              onPress={() => Alert.alert("Add Product", "Feature coming soon")}
-            >
+            <TouchableOpacity style={styles.addButton} onPress={handleAddProduct}>
               <Ionicons name="add" size={24} color={Colors.white} />
+              <Text style={styles.addButtonText}>Add</Text>
             </TouchableOpacity>
           )}
-          {!canManage && <View style={styles.placeholder} />}
         </View>
 
-        <Input
-          placeholder="Search inventory..."
-          value={searchQuery}
-          onChangeText={setSearchQuery}
-          containerStyle={styles.searchContainer}
-          inputStyle={styles.searchInput}
-        />
+        <View style={styles.searchContainer}>
+          <Ionicons name="search" size={20} color={Colors.gray400} style={styles.searchIcon} />
+          <Input
+            placeholder="Search inventory..."
+            value={searchQuery}
+            onChangeText={setSearchQuery}
+            style={styles.searchInput}
+            containerStyle={styles.searchInputContainer}
+          />
+        </View>
       </View>
 
-      <View style={styles.stats}>
-        <Card style={styles.statCard}>
-          <Text style={styles.statValue}>{products.length}</Text>
-          <Text style={styles.statLabel}>Total Products</Text>
-        </Card>
-        <Card style={[styles.statCard, lowStockCount > 0 && styles.statCardWarning]}>
-          <View style={styles.statHeader}>
-            <Text style={[styles.statValue, lowStockCount > 0 && styles.statValueWarning]}>{lowStockCount}</Text>
-            {lowStockCount > 0 && <Ionicons name="warning" size={20} color={Colors.warning} />}
-          </View>
-          <Text style={styles.statLabel}>Low Stock</Text>
-        </Card>
-      </View>
-
-      <View style={styles.controls}>
-        <Text style={styles.controlLabel}>Sort by:</Text>
-        <TouchableOpacity
-          style={[styles.sortButton, sortBy === "name" && styles.sortButtonActive]}
-          onPress={() => setSortBy("name")}
-        >
-          <Text style={[styles.sortText, sortBy === "name" && styles.sortTextActive]}>Name</Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={[styles.sortButton, sortBy === "stock" && styles.sortButtonActive]}
-          onPress={() => setSortBy("stock")}
-        >
-          <Text style={[styles.sortText, sortBy === "stock" && styles.sortTextActive]}>Stock Level</Text>
-        </TouchableOpacity>
-      </View>
-
+      {/* Products List */}
       <FlatList
         data={filteredProducts}
         keyExtractor={(item) => item.id}
         renderItem={({ item }) => (
-          <Card style={styles.productCard}>
+          <TouchableOpacity
+            style={styles.productCard}
+            onPress={() => canManage && handleEditProduct(item)}
+            activeOpacity={canManage ? 0.7 : 1}
+          >
             <View style={styles.productHeader}>
-              <View style={styles.productIcon}>
-                <Ionicons name="cube-outline" size={24} color={Colors.gray400} />
-              </View>
-              <View style={styles.productInfo}>
+              <View>
                 <Text style={styles.productName}>{item.name}</Text>
-                <Text style={styles.productSku}>{item.sku}</Text>
+                <View style={[styles.categoryBadge, { backgroundColor: getCategoryColor(item.category) }]}>
+                  <Text style={[styles.categoryText, { color: getCategoryTextColor(item.category) }]}>
+                    {item.category}
+                  </Text>
+                </View>
               </View>
-              {canManage && (
-                <TouchableOpacity style={styles.editButton} onPress={() => Alert.alert("Edit", "Feature coming soon")}>
-                  <Ionicons name="create-outline" size={20} color={Colors.gray600} />
-                </TouchableOpacity>
-              )}
-            </View>
-
-            <View style={styles.productDetails}>
-              <View style={styles.detailRow}>
-                <Text style={styles.detailLabel}>Price:</Text>
-                <Text style={styles.detailValue}>${item.price.toFixed(2)}</Text>
-              </View>
-              <View style={styles.detailRow}>
-                <Text style={styles.detailLabel}>Cost:</Text>
-                <Text style={styles.detailValue}>${item.cost.toFixed(2)}</Text>
-              </View>
-              <View style={styles.detailRow}>
-                <Text style={styles.detailLabel}>Stock:</Text>
-                <Text style={[styles.detailValue, item.stock <= item.minStock && styles.detailValueWarning]}>
-                  {item.stock}
-                  {item.stock <= item.minStock && " ⚠"}
-                </Text>
-              </View>
-              <View style={styles.detailRow}>
-                <Text style={styles.detailLabel}>Category:</Text>
-                <Text style={styles.detailValue}>{item.category}</Text>
+              <View style={styles.stockSection}>
+                <Text style={styles.stockCount}>{item.stock}</Text>
+                <Text style={styles.stockLabel}>in stock</Text>
               </View>
             </View>
-          </Card>
+            <View style={styles.productFooter}>
+              <Text style={styles.productPrice}>Price: ${item.price.toFixed(2)}</Text>
+              <Text style={styles.productSku}>SKU: {item.sku}</Text>
+            </View>
+          </TouchableOpacity>
         )}
         contentContainerStyle={styles.listContent}
         ListEmptyComponent={
@@ -135,6 +128,34 @@ export const InventoryScreen: React.FC<{ navigation: any }> = ({ navigation }) =
             <Text style={styles.emptyText}>No products found</Text>
           </View>
         }
+      />
+
+      {/* Bottom Navigation */}
+      <View style={styles.bottomNav}>
+        <TouchableOpacity style={styles.navItem} onPress={() => navigation.navigate("POSHome")}>
+          <Ionicons name="cart-outline" size={26} color={Colors.gray400} />
+          <Text style={styles.navText}>POS</Text>
+        </TouchableOpacity>
+        <TouchableOpacity style={styles.navItem}>
+          <Ionicons name="cube" size={26} color={Colors.teal} />
+          <Text style={[styles.navText, styles.navTextActive]}>Inventory</Text>
+        </TouchableOpacity>
+        <TouchableOpacity style={styles.navItem} onPress={() => navigation.navigate("Reports")}>
+          <Ionicons name="bar-chart-outline" size={26} color={Colors.gray400} />
+          <Text style={styles.navText}>Reports</Text>
+        </TouchableOpacity>
+        <TouchableOpacity style={styles.navItem} onPress={() => navigation.navigate("Settings")}>
+          <Ionicons name="settings-outline" size={26} color={Colors.gray400} />
+          <Text style={styles.navText}>Settings</Text>
+        </TouchableOpacity>
+      </View>
+
+      <ProductDrawer
+        visible={drawerVisible}
+        onClose={() => setDrawerVisible(false)}
+        onSave={handleSaveProduct}
+        product={selectedProduct}
+        mode={drawerMode}
       />
     </View>
   )
@@ -148,154 +169,122 @@ const styles = StyleSheet.create({
   header: {
     paddingTop: 48,
     paddingBottom: 16,
-    paddingHorizontal: 16,
+    paddingHorizontal: 20,
+    backgroundColor: Colors.white,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.gray100,
+    minHeight: 160,
   },
   headerTop: {
     flexDirection: "row",
-    alignItems: "center",
     justifyContent: "space-between",
+    alignItems: "flex-start",
     marginBottom: 16,
   },
-  backButton: {
-    padding: 8,
+  headerLeft: {
+    flex: 1,
   },
-  headerTitle: {
+  businessName: {
     fontSize: Typography.xl,
     fontWeight: Typography.bold,
-    color: Colors.white,
-    flex: 1,
-    textAlign: "center",
+    color: Colors.gray900,
+    marginBottom: 4,
+  },
+  productCount: {
+    fontSize: Typography.sm,
+    color: Colors.gray600,
   },
   addButton: {
-    padding: 8,
-  },
-  placeholder: {
-    width: 40,
-  },
-  searchContainer: {
-    marginTop: 0,
-  },
-  searchInput: {
-    backgroundColor: Colors.white,
-  },
-  stats: {
-    flexDirection: "row",
-    padding: 16,
-    gap: 12,
-  },
-  statCard: {
-    flex: 1,
-    padding: 16,
-    alignItems: "center",
-  },
-  statCardWarning: {
-    borderWidth: 2,
-    borderColor: Colors.warning,
-  },
-  statHeader: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 8,
-  },
-  statValue: {
-    fontSize: Typography["3xl"],
-    fontWeight: Typography.bold,
-    color: Colors.gray900,
-  },
-  statValueWarning: {
-    color: Colors.warning,
-  },
-  statLabel: {
-    fontSize: Typography.sm,
-    color: Colors.gray600,
-    marginTop: 4,
-  },
-  controls: {
-    flexDirection: "row",
-    alignItems: "center",
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    backgroundColor: Colors.white,
-    borderBottomWidth: 1,
-    borderBottomColor: Colors.gray200,
-    gap: 12,
-  },
-  controlLabel: {
-    fontSize: Typography.sm,
-    color: Colors.gray600,
-  },
-  sortButton: {
+    backgroundColor: Colors.teal,
     paddingHorizontal: 16,
     paddingVertical: 8,
     borderRadius: 8,
-    backgroundColor: Colors.gray100,
+    gap: 6,
   },
-  sortButtonActive: {
-    backgroundColor: Colors.black,
-  },
-  sortText: {
-    fontSize: Typography.sm,
-    color: Colors.gray600,
-  },
-  sortTextActive: {
-    color: Colors.white,
+  addButtonText: {
+    fontSize: Typography.base,
     fontWeight: Typography.semibold,
+    color: Colors.white,
+  },
+  searchContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: Colors.gray50,
+    borderRadius: 12,
+    paddingHorizontal: 16,
+    height: 48,
+  },
+  searchIcon: {
+    marginRight: 8,
+  },
+  searchInputContainer: {
+    flex: 1,
+    marginTop: 0,
+  },
+  searchInput: {
+    backgroundColor: "transparent",
+    borderWidth: 0,
   },
   listContent: {
     padding: 16,
-    gap: 12,
+    paddingBottom: 100,
   },
   productCard: {
+    backgroundColor: Colors.white,
+    borderRadius: 12,
     padding: 16,
+    marginBottom: 12,
+    borderWidth: 1,
+    borderColor: Colors.gray200,
   },
   productHeader: {
     flexDirection: "row",
-    alignItems: "center",
-    marginBottom: 16,
-    gap: 12,
-  },
-  productIcon: {
-    width: 48,
-    height: 48,
-    backgroundColor: Colors.gray50,
-    borderRadius: 12,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  productInfo: {
-    flex: 1,
+    justifyContent: "space-between",
+    alignItems: "flex-start",
+    marginBottom: 12,
   },
   productName: {
-    fontSize: Typography.base,
+    fontSize: Typography.lg,
     fontWeight: Typography.semibold,
     color: Colors.gray900,
-    marginBottom: 4,
+    marginBottom: 8,
+  },
+  categoryBadge: {
+    paddingHorizontal: 12,
+    paddingVertical: 4,
+    borderRadius: 6,
+    alignSelf: "flex-start",
+  },
+  categoryText: {
+    fontSize: Typography.xs,
+    fontWeight: Typography.medium,
+  },
+  stockSection: {
+    alignItems: "flex-end",
+  },
+  stockCount: {
+    fontSize: 32,
+    fontWeight: Typography.bold,
+    color: Colors.gray900,
+    lineHeight: 36,
+  },
+  stockLabel: {
+    fontSize: Typography.xs,
+    color: Colors.gray500,
+  },
+  productFooter: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+  },
+  productPrice: {
+    fontSize: Typography.sm,
+    color: Colors.gray700,
   },
   productSku: {
     fontSize: Typography.sm,
     color: Colors.gray500,
-  },
-  editButton: {
-    padding: 8,
-  },
-  productDetails: {
-    gap: 8,
-  },
-  detailRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-  },
-  detailLabel: {
-    fontSize: Typography.sm,
-    color: Colors.gray600,
-  },
-  detailValue: {
-    fontSize: Typography.sm,
-    fontWeight: Typography.semibold,
-    color: Colors.gray900,
-  },
-  detailValueWarning: {
-    color: Colors.warning,
   },
   empty: {
     alignItems: "center",
@@ -306,5 +295,31 @@ const styles = StyleSheet.create({
     fontSize: Typography.base,
     color: Colors.gray400,
     marginTop: 16,
+  },
+  bottomNav: {
+    position: "absolute",
+    bottom: 0,
+    left: 0,
+    right: 0,
+    flexDirection: "row",
+    backgroundColor: Colors.white,
+    borderTopWidth: 1,
+    borderTopColor: Colors.gray200,
+    paddingBottom: 8,
+    paddingTop: 8,
+  },
+  navItem: {
+    flex: 1,
+    alignItems: "center",
+    paddingVertical: 8,
+    gap: 4,
+  },
+  navText: {
+    fontSize: Typography.xs,
+    color: Colors.gray600,
+  },
+  navTextActive: {
+    color: Colors.teal,
+    fontWeight: Typography.semibold,
   },
 })

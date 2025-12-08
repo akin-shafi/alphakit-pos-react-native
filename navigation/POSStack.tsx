@@ -5,6 +5,7 @@ import { CheckoutScreen } from "../screens/pos/CheckoutScreen"
 import { ExternalTerminalScreen } from "../screens/pos/ExternalTerminalScreen"
 import { InventoryScreen } from "../screens/inventory/InventoryScreen"
 import { ReportsScreen } from "../screens/reports/ReportsScreen"
+import { DetailedReportScreen } from "../screens/reports/DetailedReportScreen"
 import { SettingsScreen } from "../screens/settings/SettingsScreen"
 import { PaymentSettingsScreen } from "../screens/settings/PaymentSettingsScreen"
 
@@ -19,6 +20,7 @@ export const POSStack = () => {
       <Stack.Screen name="ExternalTerminal" component={ExternalTerminalScreen} />
       <Stack.Screen name="Inventory" component={InventoryScreen} />
       <Stack.Screen name="Reports" component={ReportsScreen} />
+      <Stack.Screen name="DetailedReport" component={DetailedReportScreen} />
       <Stack.Screen name="Settings" component={SettingsScreen} />
       <Stack.Screen name="PaymentSettings" component={PaymentSettingsScreen} />
     </Stack.Navigator>

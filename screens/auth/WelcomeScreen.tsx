@@ -1,5 +1,6 @@
 import type React from "react"
-import { View, Text, StyleSheet } from "react-native"
+import { View, Text, StyleSheet, ScrollView } from "react-native"
+import { Ionicons } from "@expo/vector-icons"
 import { Button } from "../../components/Button"
 import { Colors } from "../../constants/Colors"
 import { Typography } from "../../constants/Typography"
@@ -7,34 +8,79 @@ import { Typography } from "../../constants/Typography"
 export const WelcomeScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
   return (
     <View style={styles.container}>
-      <View style={styles.content}>
+      <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
         <View style={styles.header}>
-          <View style={styles.logo}>
-            <Text style={styles.logoText}>POS</Text>
-          </View>
-          <Text style={styles.title}>Welcome to POS Terminal</Text>
-          <Text style={styles.subtitle}>Modern point of sale solution for your business</Text>
-        </View>
-
-        <View style={styles.illustration}>
-          <View style={styles.illustrationBox}>
-            <Text style={styles.illustrationText}>🏪</Text>
+          <View style={styles.logoCircle}>
+            <Ionicons name="storefront" size={48} color={Colors.white} />
           </View>
         </View>
 
-        <View style={styles.actions}>
-          <Button title="Register New Business" onPress={() => navigation.navigate("Onboarding")} fullWidth size="lg" />
-          <Button
-            title="Login to Existing Business"
-            onPress={() => navigation.navigate("BusinessID")}
-            variant="outline"
-            fullWidth
-            size="lg"
-          />
+        <Text style={styles.title}>Welcome to{"\n"}POS Terminal</Text>
+        <Text style={styles.description}>
+          The complete point of sale solution for your business. Manage inventory, process transactions, and track sales
+          all in one place.
+        </Text>
+
+        <View style={styles.features}>
+          <View style={styles.feature}>
+            <View style={[styles.featureIcon, { backgroundColor: Colors.tealLight }]}>
+              <Ionicons name="cart" size={28} color={Colors.teal} />
+            </View>
+            <View style={styles.featureContent}>
+              <Text style={styles.featureTitle}>Fast Checkout</Text>
+              <Text style={styles.featureText}>Process sales quickly with an intuitive interface</Text>
+            </View>
+          </View>
+
+          <View style={styles.feature}>
+            <View style={[styles.featureIcon, { backgroundColor: Colors.tealLight }]}>
+              <Ionicons name="cube" size={28} color={Colors.teal} />
+            </View>
+            <View style={styles.featureContent}>
+              <Text style={styles.featureTitle}>Inventory Management</Text>
+              <Text style={styles.featureText}>Track stock levels and manage products easily</Text>
+            </View>
+          </View>
+
+          <View style={styles.feature}>
+            <View style={[styles.featureIcon, { backgroundColor: Colors.tealLight }]}>
+              <Ionicons name="bar-chart" size={28} color={Colors.teal} />
+            </View>
+            <View style={styles.featureContent}>
+              <Text style={styles.featureTitle}>Sales Reports</Text>
+              <Text style={styles.featureText}>Get insights with detailed analytics</Text>
+            </View>
+          </View>
+
+          <View style={styles.feature}>
+            <View style={[styles.featureIcon, { backgroundColor: Colors.tealLight }]}>
+              <Ionicons name="shield-checkmark" size={28} color={Colors.teal} />
+            </View>
+            <View style={styles.featureContent}>
+              <Text style={styles.featureTitle}>Secure & Reliable</Text>
+              <Text style={styles.featureText}>Your business data is safe and protected</Text>
+            </View>
+          </View>
         </View>
+      </ScrollView>
+
+      <View style={styles.actions}>
+        <Button
+          title="Get Started"
+          onPress={() => navigation.navigate("Onboarding")}
+          fullWidth
+          size="lg"
+          style={styles.primaryButton}
+        />
+        <Button
+          title="I Have an Account"
+          onPress={() => navigation.navigate("BusinessID")}
+          variant="outline"
+          fullWidth
+          size="lg"
+          style={styles.outlineButton}
+        />
       </View>
-
-      <Text style={styles.footer}>Secure • Fast • Reliable</Text>
     </View>
   )
 }
@@ -44,63 +90,82 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: Colors.white,
   },
-  content: {
-    flex: 1,
+  scrollContent: {
     padding: 24,
-    justifyContent: "space-between",
+    paddingBottom: 180,
   },
   header: {
-    alignItems: "center",
-    marginTop: 48,
+    alignItems: "flex-start",
+    marginTop: 24,
+    marginBottom: 32,
   },
-  logo: {
+  logoCircle: {
     width: 80,
     height: 80,
-    backgroundColor: Colors.black,
-    borderRadius: 20,
+    backgroundColor: Colors.teal,
+    borderRadius: 40,
     alignItems: "center",
     justifyContent: "center",
-    marginBottom: 24,
-  },
-  logoText: {
-    fontSize: Typography["3xl"],
-    fontWeight: Typography.bold,
-    color: Colors.white,
   },
   title: {
-    fontSize: Typography["3xl"],
+    fontSize: 34,
     fontWeight: Typography.bold,
     color: Colors.gray900,
-    textAlign: "center",
-    marginBottom: 12,
+    marginBottom: 16,
+    lineHeight: 42,
   },
-  subtitle: {
-    fontSize: Typography.lg,
-    color: Colors.gray500,
-    textAlign: "center",
+  description: {
+    fontSize: Typography.base,
+    color: Colors.gray600,
+    lineHeight: 24,
+    marginBottom: 40,
   },
-  illustration: {
-    alignItems: "center",
-    justifyContent: "center",
+  features: {
+    gap: 28,
   },
-  illustrationBox: {
-    width: 200,
-    height: 200,
-    backgroundColor: Colors.gray50,
-    borderRadius: 100,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  illustrationText: {
-    fontSize: 80,
-  },
-  actions: {
+  feature: {
+    flexDirection: "row",
+    alignItems: "flex-start",
     gap: 16,
   },
-  footer: {
-    textAlign: "center",
-    padding: 24,
+  featureIcon: {
+    width: 56,
+    height: 56,
+    borderRadius: 12,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  featureContent: {
+    flex: 1,
+    paddingTop: 4,
+  },
+  featureTitle: {
+    fontSize: Typography.lg,
+    fontWeight: Typography.semibold,
+    color: Colors.gray900,
+    marginBottom: 4,
+  },
+  featureText: {
     fontSize: Typography.sm,
-    color: Colors.gray400,
+    color: Colors.gray600,
+    lineHeight: 20,
+  },
+  actions: {
+    position: "absolute",
+    bottom: 0,
+    left: 0,
+    right: 0,
+    padding: 24,
+    paddingBottom: 32,
+    backgroundColor: Colors.white,
+    gap: 12,
+    borderTopWidth: 1,
+    borderTopColor: Colors.gray100,
+  },
+  primaryButton: {
+    backgroundColor: Colors.teal,
+  },
+  outlineButton: {
+    borderColor: Colors.teal,
   },
 })

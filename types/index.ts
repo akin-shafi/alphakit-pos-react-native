@@ -4,7 +4,8 @@ export interface Business {
   id: string
   businessId: string
   name: string
-  type: "retail" | "restaurant" | "pharmacy" | "grocery" | "default"
+  // type: "retail" | "restaurant" | "pharmacy" | "grocery" | "default"
+  type: "restaurant" | "pharmacy" | "gas_station" | "boutique"  | "retail" | "Bar" | "grocery"
   address: string
   phone: string
   email: string

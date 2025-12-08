@@ -3,6 +3,7 @@ export const Colors = {
   // Base neutrals
   white: "#FFFFFF",
   black: "#0A0A0A",
+  // red: "#EF4444",
   gray50: "#F9FAFB",
   gray100: "#F3F4F6",
   gray200: "#E5E7EB",
@@ -14,43 +15,63 @@ export const Colors = {
   gray800: "#1F2937",
   gray900: "#111827",
 
+  // Primary teal theme (from reference design)
+  teal: "#0D5963",
+  tealDark: "#0A4750",
+  tealLight: "#E6F4F5",
+  teal50: "#E6F4F5", // Added light teal background for icons
+  teal200: "#A0DCE1",
+
   // Status colors
   success: "#10B981",
   warning: "#F59E0B",
   error: "#EF4444",
   info: "#3B82F6",
+  purple: "#9C27B0", // Added purple for tax metric
+
+  green50: "#ECFDF5",
+  blue50: "#EFF6FF",
+  purple50: "#F5F3FF",
+  red50: "#FEF2F2",
 
   // Online/Offline indicators
   online: "#10B981",
   offline: "#6B7280",
   syncing: "#F59E0B",
+
+  // Product card colors (from reference design)
+  productRed: "#E85D5D",
+  productGreen: "#4CAF50",
+  productBlue: "#3B82F6",
+  productPurple: "#9C27B0",
+  productOrange: "#FF9800",
 }
 
-// Business type themes
+// Business type themes - updated to use teal as primary
 export const BusinessThemes = {
   retail: {
-    primary: "#2563EB", // Blue
-    primaryDark: "#1E40AF",
-    primaryLight: "#DBEAFE",
+    primary: "#0D5963",
+    primaryDark: "#0A4750",
+    primaryLight: "#E6F4F5",
   },
   restaurant: {
-    primary: "#DC2626", // Red
-    primaryDark: "#991B1B",
-    primaryLight: "#FEE2E2",
+    primary: "#0D5963",
+    primaryDark: "#0A4750",
+    primaryLight: "#E6F4F5",
   },
   pharmacy: {
-    primary: "#059669", // Green
-    primaryDark: "#047857",
-    primaryLight: "#D1FAE5",
+    primary: "#0D5963",
+    primaryDark: "#0A4750",
+    primaryLight: "#E6F4F5",
   },
   grocery: {
-    primary: "#7C3AED", // Purple
-    primaryDark: "#5B21B6",
-    primaryLight: "#EDE9FE",
+    primary: "#0D5963",
+    primaryDark: "#0A4750",
+    primaryLight: "#E6F4F5",
   },
   default: {
-    primary: "#0A0A0A", // Black for enterprise
-    primaryDark: "#000000",
-    primaryLight: "#F3F4F6",
+    primary: "#0D5963",
+    primaryDark: "#0A4750",
+    primaryLight: "#E6F4F5",
   },
 }
