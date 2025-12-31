@@ -2,7 +2,7 @@ import { createStackNavigator } from "@react-navigation/stack"
 import { SplashScreen } from "../screens/auth/SplashScreen"
 import { WelcomeScreen } from "../screens/auth/WelcomeScreen"
 import { OnboardingScreen } from "../screens/auth/OnboardingScreen"
-import { BusinessIDScreen } from "../screens/auth/BusinessIDScreen"
+import { LoginEmailScreen } from "../screens/auth/LoginEmailScreen"
 import { PINScreen } from "../screens/auth/PINScreen"
 import { CreatePINScreen } from "../screens/auth/CreatePINScreen"
 
@@ -14,7 +14,7 @@ export const AuthStack = () => {
       <Stack.Screen name="Splash" component={SplashScreen} />
       <Stack.Screen name="Welcome" component={WelcomeScreen} />
       <Stack.Screen name="Onboarding" component={OnboardingScreen} />
-      <Stack.Screen name="BusinessID" component={BusinessIDScreen} />
+      <Stack.Screen name="Login" component={LoginEmailScreen} />
       <Stack.Screen name="PIN" component={PINScreen} />
       <Stack.Screen name="CreatePIN" component={CreatePINScreen} />
     </Stack.Navigator>

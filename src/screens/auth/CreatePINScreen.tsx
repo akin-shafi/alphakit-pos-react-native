@@ -15,15 +15,15 @@ import {
 } from "react-native"
 import { Ionicons } from "@expo/vector-icons"
 import { Button } from "../../components/Button"
-import { useAuth } from "../../contexts/AuthContext"
+import { useAuthStore } from "../../stores/useAuthStore"
 import { Colors } from "../../constants/Colors"
 import { Typography } from "../../constants/Typography"
 
 export const CreatePINScreen: React.FC<{ navigation: any; route: any }> = ({ navigation, route }) => {
-  const { setupAdmin } = useAuth()
-  const { adminData, businessData } = route.params
+  const { businessData, userId } = route.params
+  const { setPin, login } = useAuthStore()
   const [loading, setLoading] = useState(false)
-  const [pin, setPin] = useState("")
+  const [pin, setPinState] = useState("")
   const [confirmPin, setConfirmPin] = useState("")
   const [step, setStep] = useState<"create" | "confirm">("create")
 
@@ -33,33 +33,22 @@ export const CreatePINScreen: React.FC<{ navigation: any; route: any }> = ({ nav
 
   const handleNumberPress = (num: string) => {
     if (step === "create") {
-      if (pin.length < 4) {
-        setPin(pin + num)
-      }
+      if (pin.length < 4) setPinState(pin + num)
     } else {
-      if (confirmPin.length < 4) {
-        setConfirmPin(confirmPin + num)
-      }
+      if (confirmPin.length < 4) setConfirmPin(confirmPin + num)
     }
   }
 
   const handleBackspace = () => {
-    if (step === "create") {
-      setPin(pin.slice(0, -1))
-    } else {
-      setConfirmPin(confirmPin.slice(0, -1))
-    }
+    if (step === "create") setPinState(pin.slice(0, -1))
+    else setConfirmPin(confirmPin.slice(0, -1))
   }
 
   const handleContinue = () => {
     if (step === "create") {
-      if (pin.length === 4) {
-        setStep("confirm")
-      }
+      if (pin.length === 4) setStep("confirm")
     } else {
-      if (confirmPin.length === 4) {
-        handleSubmit()
-      }
+      if (confirmPin.length === 4) handleSubmit()
     }
   }
 
@@ -72,15 +61,19 @@ export const CreatePINScreen: React.FC<{ navigation: any; route: any }> = ({ nav
 
     setLoading(true)
     try {
-      await setupAdmin({
-        name: adminData.name,
-        email: adminData.email,
-        pin: pin,
-        role: "admin" as any,
+      // Call setPin from Zustand, which talks to AuthService
+      await setPin(userId, pin)
+
+      // Auto-login after onboarding
+      await login(businessData.businessId, pin)
+
+      // Navigate to main dashboard
+      navigation.reset({
+        index: 0,
+        routes: [{ name: "Dashboard" }],
       })
-      // Auth context will handle navigation automatically
-    } catch (error) {
-      alert("Error setting up admin account")
+    } catch (error: any) {
+      alert(error.message || "Error setting up PIN")
     } finally {
       setLoading(false)
     }
@@ -144,27 +137,15 @@ export const CreatePINScreen: React.FC<{ navigation: any; route: any }> = ({ nav
               </View>
 
               <View style={styles.keypad}>
-                <View style={styles.keypadRow}>
-                  {["1", "2", "3"].map((num) => (
-                    <TouchableOpacity key={num} style={styles.keypadButton} onPress={() => handleNumberPress(num)}>
-                      <Text style={styles.keypadButtonText}>{num}</Text>
-                    </TouchableOpacity>
-                  ))}
-                </View>
-                <View style={styles.keypadRow}>
-                  {["4", "5", "6"].map((num) => (
-                    <TouchableOpacity key={num} style={styles.keypadButton} onPress={() => handleNumberPress(num)}>
-                      <Text style={styles.keypadButtonText}>{num}</Text>
-                    </TouchableOpacity>
-                  ))}
-                </View>
-                <View style={styles.keypadRow}>
-                  {["7", "8", "9"].map((num) => (
-                    <TouchableOpacity key={num} style={styles.keypadButton} onPress={() => handleNumberPress(num)}>
-                      <Text style={styles.keypadButtonText}>{num}</Text>
-                    </TouchableOpacity>
-                  ))}
-                </View>
+                {["123", "456", "789"].map((row) => (
+                  <View key={row} style={styles.keypadRow}>
+                    {row.split("").map((num) => (
+                      <TouchableOpacity key={num} style={styles.keypadButton} onPress={() => handleNumberPress(num)}>
+                        <Text style={styles.keypadButtonText}>{num}</Text>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+                ))}
                 <View style={styles.keypadRow}>
                   <View style={styles.keypadButton} />
                   <TouchableOpacity style={styles.keypadButton} onPress={() => handleNumberPress("0")}>
@@ -195,132 +176,31 @@ export const CreatePINScreen: React.FC<{ navigation: any; route: any }> = ({ nav
   )
 }
 
+
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: Colors.white,
-  },
-  innerContainer: {
-    flex: 1,
-  },
-  topBar: {
-    flexDirection: "row",
-    alignItems: "center",
-    paddingTop: 48,
-    paddingHorizontal: 20,
-    paddingBottom: 12,
-    gap: 12,
-  },
-  backButton: {
-    padding: 4,
-  },
-  stepInfo: {
-    flex: 1,
-  },
-  stepTitle: {
-    fontSize: Typography.xl,
-    fontWeight: Typography.bold,
-    color: Colors.gray900,
-  },
-  stepSubtitle: {
-    fontSize: Typography.sm,
-    color: Colors.gray600,
-    marginTop: 2,
-  },
-  progressContainer: {
-    height: 4,
-    backgroundColor: Colors.gray200,
-    marginHorizontal: 20,
-    marginBottom: 24,
-    borderRadius: 2,
-    overflow: "hidden",
-  },
-  progressBar: {
-    height: "100%",
-    backgroundColor: Colors.teal,
-    borderRadius: 2,
-  },
-  content: {
-    flex: 1,
-    paddingHorizontal: 20,
-    paddingTop: 40,
-    paddingBottom: 20,
-  },
-  iconContainer: {
-    alignItems: "center",
-    marginBottom: 32,
-  },
-  iconCircle: {
-    width: 100,
-    height: 100,
-    borderRadius: 50,
-    backgroundColor: Colors.teal,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  header: {
-    alignItems: "center",
-    marginBottom: 48,
-  },
-  title: {
-    fontSize: Typography["2xl"],
-    fontWeight: Typography.bold,
-    color: Colors.gray900,
-    marginBottom: 8,
-    textAlign: "center",
-  },
-  subtitle: {
-    fontSize: Typography.base,
-    color: Colors.gray600,
-    textAlign: "center",
-  },
-  pinDisplay: {
-    flexDirection: "row",
-    justifyContent: "center",
-    gap: 16,
-    marginBottom: 64,
-  },
-  pinDot: {
-    width: 16,
-    height: 16,
-    borderRadius: 8,
-    backgroundColor: Colors.gray200,
-  },
-  pinDotFilled: {
-    backgroundColor: Colors.teal,
-  },
-  keypad: {
-    gap: 16,
-  },
-  keypadRow: {
-    flexDirection: "row",
-    justifyContent: "center",
-    gap: 16,
-  },
-  keypadButton: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
-    backgroundColor: Colors.white,
-    alignItems: "center",
-    justifyContent: "center",
-    borderWidth: 1,
-    borderColor: Colors.gray200,
-  },
-  keypadButtonText: {
-    fontSize: 32,
-    fontWeight: Typography.semibold,
-    color: Colors.gray900,
-  },
-  footer: {
-    paddingHorizontal: 20,
-    paddingVertical: 16,
-  },
-  scrollView: {
-    flex: 1,
-  },
-  scrollContent: {
-    flexGrow: 1,
-    paddingBottom: 100,
-  },
+  container: { flex: 1, backgroundColor: Colors.white },
+  innerContainer: { flex: 1 },
+  topBar: { flexDirection: "row", alignItems: "center", paddingTop: 48, paddingHorizontal: 20, paddingBottom: 12, gap: 12 },
+  backButton: { padding: 4 },
+  stepInfo: { flex: 1 },
+  stepTitle: { fontSize: Typography.xl, fontWeight: Typography.bold, color: Colors.gray900 },
+  stepSubtitle: { fontSize: Typography.sm, color: Colors.gray600, marginTop: 2 },
+  progressContainer: { height: 4, backgroundColor: Colors.gray200, marginHorizontal: 20, marginBottom: 24, borderRadius: 2, overflow: "hidden" },
+  progressBar: { height: "100%", backgroundColor: Colors.teal, borderRadius: 2 },
+  content: { flex: 1, paddingHorizontal: 20, paddingTop: 40, paddingBottom: 20 },
+  iconContainer: { alignItems: "center", marginBottom: 32 },
+  iconCircle: { width: 100, height: 100, borderRadius: 50, backgroundColor: Colors.teal, alignItems: "center", justifyContent: "center" },
+  header: { alignItems: "center", marginBottom: 48 },
+  title: { fontSize: Typography["2xl"], fontWeight: Typography.bold, color: Colors.gray900, marginBottom: 8, textAlign: "center" },
+  subtitle: { fontSize: Typography.base, color: Colors.gray600, textAlign: "center" },
+  pinDisplay: { flexDirection: "row", justifyContent: "center", gap: 16, marginBottom: 64 },
+  pinDot: { width: 16, height: 16, borderRadius: 8, backgroundColor: Colors.gray200 },
+  pinDotFilled: { backgroundColor: Colors.teal },
+  keypad: { gap: 16 },
+  keypadRow: { flexDirection: "row", justifyContent: "center", gap: 16 },
+  keypadButton: { width: 80, height: 80, borderRadius: 40, backgroundColor: Colors.white, alignItems: "center", justifyContent: "center", borderWidth: 1, borderColor: Colors.gray200 },
+  keypadButtonText: { fontSize: 32, fontWeight: Typography.semibold, color: Colors.gray900 },
+  footer: { paddingHorizontal: 20, paddingVertical: 16 },
+  scrollView: { flex: 1 },
+  scrollContent: { flexGrow: 1, paddingBottom: 100 },
 })

@@ -467,7 +467,7 @@ const styles = StyleSheet.create({
   },
   errorText: {
     fontSize: Typography.xs,
-    color: Colors.error,
+    color: Colors.red,
     marginTop: 4,
   },
 })

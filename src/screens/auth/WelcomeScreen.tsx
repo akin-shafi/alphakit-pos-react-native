@@ -74,7 +74,7 @@ export const WelcomeScreen: React.FC<{ navigation: any }> = ({ navigation }) => 
         />
         <Button
           title="I Have an Account"
-          onPress={() => navigation.navigate("BusinessID")}
+          onPress={() => navigation.navigate("Login")}
           variant="outline"
           fullWidth
           size="lg"

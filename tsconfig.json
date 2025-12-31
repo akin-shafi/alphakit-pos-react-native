@@ -6,14 +6,21 @@
     "esModuleInterop": true,
     "skipLibCheck": true,
     "allowSyntheticDefaultImports": true,
+    "baseUrl": ".",
     "paths": {
       "@/*": [
-        "./*"
+        "src/*"
+      ],
+      "@assets/*": [
+        "assets/*"
+      ],
+      "@screens/*": [
+        "src/screens/*"
       ]
     }
   },
   "include": [
-    "**/*.ts",
-    "App.tsx"
-  ],
+    "src/**/*.ts",
+    "src/**/*.tsx"
+  ]
 }
