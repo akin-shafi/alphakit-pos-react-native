@@ -1,30 +1,107 @@
-# Mobile POS application
+# AlphaKit POS - React Native
 
-*Automatically synced with your [v0.app](https://v0.app) deployments*
+**AlphaKit POS** is a store-front Point of Sale (POS) solution built with React Native, designed for retail businesses. It provides features for inventory management, sales tracking, and staff shift management, allowing businesses to operate efficiently and streamline daily operations.
 
-[![Deployed on Vercel](https://img.shields.io/badge/Deployed%20on-Vercel-black?style=for-the-badge&logo=vercel)](https://vercel.com/sandsify-systems-projects/v0-mobile-pos-application)
-[![Built with v0](https://img.shields.io/badge/Built%20with-v0.app-black?style=for-the-badge)](https://v0.app/chat/t9ppjOAKObo)
+App Screenshots
+<p align="center"> <img src="https://github.com/akin-shafi/alphakit-pos-react-native/blob/main/screnshorts/welcome.jpeg" alt="Welcome Screen" width="250"/> <img src="https://github.com/akin-shafi/alphakit-pos-react-native/blob/main/screnshorts/signup.jpeg" alt="Signup Screen" width="250"/> <img src="https://github.com/akin-shafi/alphakit-pos-react-native/blob/main/screnshorts/home.jpeg" alt="Home Screen" width="250"/> </p>
 
-## Overview
+From left to right:
+Welcome Screen · Signup Screen · Home Dashboard
 
-This repository will stay in sync with your deployed chats on [v0.app](https://v0.app).
-Any changes you make to your deployed app will be automatically pushed to this repository from [v0.app](https://v0.app).
+## Features
 
-## Deployment
+- Inventory management: Add, update, and track stock levels
+- Sales management: Record sales, generate receipts, and track revenue
+- Staff management: Manage shifts, roles, and attendance
+- Customer management: Maintain customer records and purchase history
+- Reports: Generate sales and inventory reports
+- Offline support: Continue working even without internet connectivity
+- Integration with backend API for real-time updates
 
-Your project is live at:
+## Tech Stack
 
-**[https://vercel.com/sandsify-systems-projects/v0-mobile-pos-application](https://vercel.com/sandsify-systems-projects/v0-mobile-pos-application)**
+- **Framework:** React Native
+- **State Management:** Redux / Context API (adjust if different)
+- **Navigation:** React Navigation
+- **Backend Integration:** REST API / GraphQL
+- **Database:** Local storage (SQLite, AsyncStorage) and remote backend
+- **Authentication:** JWT / OAuth (if applicable)
 
-## Build your app
+## Getting Started
 
-Continue building your app on:
+### Prerequisites
 
-**[https://v0.app/chat/t9ppjOAKObo](https://v0.app/chat/t9ppjOAKObo)**
+- Node.js >= 18.x
+- NPM or Yarn
+- Expo CLI (if using Expo) or React Native CLI
+- Git
+- Android Studio / Xcode for mobile emulators
 
-## How It Works
+### Installation
 
-1. Create and modify your project using [v0.app](https://v0.app)
-2. Deploy your chats from the v0 interface
-3. Changes are automatically pushed to this repository
-4. Vercel deploys the latest version from this repository
+1. Clone the repository:
+
+```bash
+git clone https://github.com/yourusername/alphakit-pos-react-native.git
+cd alphakit-pos-react-native
+```
+
+2. Install dependencies:
+
+```bash
+npm install
+# or
+yarn install
+```
+
+3. Start the development server:
+
+```bash
+npm start
+# or
+yarn start
+```
+
+4. Run on emulator or device:
+
+```bash
+# For Android
+npm run android
+# For iOS
+npm run ios
+```
+
+## Project Structure
+
+```
+alphakit-pos-react-native/
+├── src/
+│   ├── components/       # Reusable UI components
+│   ├── screens/          # App screens (Home, Sales, Inventory, etc.)
+│   ├── navigation/       # Navigation configuration
+│   ├── redux/            # State management
+│   ├── utils/            # Utility functions
+│   ├── services/         # API calls and backend integration
+│   └── App.js            # Main entry point
+├── assets/               # Images, fonts, icons
+├── .env                  # Environment variables
+├── package.json
+└── README.md
+```
+
+## Contributing
+
+1. Fork the repository
+2. Create a feature branch: `git checkout -b feature/my-feature`
+3. Commit your changes: `git commit -m 'Add new feature'`
+4. Push to branch: `git push origin feature/my-feature`
+5. Open a Pull Request
+
+## License
+
+This project is licensed under the MIT License. See the [LICENSE](LICENSE) file for details.
+
+## Contact
+
+For questions or support, contact **[Your Name]** at **[your.email@example.com]**.
+
