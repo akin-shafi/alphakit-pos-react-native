@@ -2,7 +2,7 @@ import type React from "react"
 import { View, Text, StyleSheet, ScrollView } from "react-native"
 import type { CartItem, Business, User } from "../types"
 import { Colors } from "../constants/Colors"
-import { Typography } from "../../constants/Typography"
+import { Typography } from "../constants/Typography"
 
 interface ReceiptPreviewProps {
   business: Business
