@@ -46,14 +46,16 @@ export interface RegisterBusinessPayload {
   business: {
     name: string
     type: string
-    address?: string
+    address: string
+    city: string
     email?: string
     phone?: string
   }
-  owner: {
-    firstName: string
-    lastName: string
+  user: {
+    first_name: string
+    last_name: string
     email: string
+    password: string
   }
 }
 

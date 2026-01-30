@@ -16,21 +16,42 @@ import {
 import { Ionicons } from "@expo/vector-icons"
 import { Input } from "../../components/Input"
 import { Button } from "../../components/Button"
+import { useAuth } from "../../contexts/AuthContext"
 import { Colors } from "../../constants/Colors"
 import { Typography } from "../../constants/Typography"
 
 const DEMO_EMAIL = "demo@business.com"
+const DEMO_PASSWORD = "demo1234"
 
 export const LoginEmailScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
+  const { login } = useAuth()
   const [email, setEmail] = useState("")
+  const [password, setPassword] = useState("")
+  const [showPassword, setShowPassword] = useState(false)
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState("")
   const scrollViewRef = useRef<ScrollView>(null)
 
-  const handleContinue = () => {
+  const handleLogin = async () => {
     if (!email.trim()) {
-      alert("Please enter your email")
+      setError("Please enter your email")
       return
     }
-    navigation.navigate("PIN", { email })
+    if (!password.trim()) {
+      setError("Please enter your password")
+      return
+    }
+
+    setLoading(true)
+    setError("")
+    try {
+      await login(email.trim(), password)
+      // Navigation happens automatically in AppNavigation based on isAuthenticated
+    } catch (err: any) {
+      setError(err?.message || "Login failed. Please check your credentials.")
+    } finally {
+      setLoading(false)
+    }
   }
 
   const handleInputFocus = () => {
@@ -43,8 +64,9 @@ export const LoginEmailScreen: React.FC<{ navigation: any }> = ({ navigation }) 
     Keyboard.dismiss()
   }
 
-  const handleDemoEmailPress = () => {
+  const handleDemoCredentialsPress = () => {
     setEmail(DEMO_EMAIL)
+    setPassword(DEMO_PASSWORD)
     Keyboard.dismiss()
   }
 
@@ -66,12 +88,12 @@ export const LoginEmailScreen: React.FC<{ navigation: any }> = ({ navigation }) 
             showsVerticalScrollIndicator={false}
           >
             <View style={styles.iconContainer}>
-              <Ionicons name="mail" size={48} color={Colors.white} />
+              <Ionicons name="lock-closed" size={48} color={Colors.white} />
             </View>
 
             <View style={styles.header}>
-              <Text style={styles.title}>Enter Your Email</Text>
-              <Text style={styles.subtitle}>Enter your registered email to continue</Text>
+              <Text style={styles.title}>Welcome Back</Text>
+              <Text style={styles.subtitle}>Sign in with your email and password</Text>
             </View>
 
             <View style={styles.form}>
@@ -80,23 +102,66 @@ export const LoginEmailScreen: React.FC<{ navigation: any }> = ({ navigation }) 
                 <Input
                   placeholder="Enter your email"
                   value={email}
-                  onChangeText={setEmail}
+                  onChangeText={(v) => {
+                    setEmail(v)
+                    setError("")
+                  }}
                   autoCapitalize="none"
                   keyboardType="email-address"
                   onFocus={handleInputFocus}
+                  editable={!loading}
                 />
               </View>
 
-              <Button title="Continue" onPress={handleContinue} fullWidth size="lg" primaryColor={Colors.teal} />
+              <View>
+                <Text style={styles.label}>Password</Text>
+                <View style={styles.passwordInputContainer}>
+                  <Input
+                    placeholder="Enter your password"
+                    value={password}
+                    onChangeText={(v) => {
+                      setPassword(v)
+                      setError("")
+                    }}
+                    secureTextEntry={!showPassword}
+                    onFocus={handleInputFocus}
+                    editable={!loading}
+                    style={{ flex: 1 }}
+                  />
+                  <TouchableOpacity
+                    style={styles.passwordToggle}
+                    onPress={() => setShowPassword(!showPassword)}
+                  >
+                    <Ionicons
+                      name={showPassword ? "eye-off" : "eye"}
+                      size={20}
+                      color={Colors.gray600}
+                    />
+                  </TouchableOpacity>
+                </View>
+              </View>
 
-              <TouchableOpacity onPress={handleDemoEmailPress} style={styles.demoIdBox} activeOpacity={0.7}>
-                <View style={styles.demoIdIcon}>
+              {error && <Text style={styles.errorMessage}>{error}</Text>}
+
+              <Button
+                title="Sign In"
+                onPress={handleLogin}
+                fullWidth
+                size="lg"
+                loading={loading}
+                disabled={loading}
+                primaryColor={Colors.teal}
+              />
+
+              <TouchableOpacity onPress={handleDemoCredentialsPress} style={styles.demoBox} activeOpacity={0.7}>
+                <View style={styles.demoIcon}>
                   <Ionicons name="play-circle" size={20} color={Colors.teal} />
                 </View>
-                <View style={styles.demoIdContent}>
-                  <Text style={styles.demoIdTitle}>Demo Email (Testing)</Text>
-                  <Text style={styles.demoIdValue}>{DEMO_EMAIL}</Text>
-                  <Text style={styles.demoIdHint}>Tap to auto-fill</Text>
+                <View style={styles.demoContent}>
+                  <Text style={styles.demoTitle}>Demo Credentials (Testing)</Text>
+                  <Text style={styles.demoValue}>Email: {DEMO_EMAIL}</Text>
+                  <Text style={styles.demoValue}>Password: {DEMO_PASSWORD}</Text>
+                  <Text style={styles.demoHint}>Tap to auto-fill</Text>
                 </View>
               </TouchableOpacity>
 
@@ -136,21 +201,44 @@ const styles = StyleSheet.create({
   subtitle: { fontSize: Typography.base, color: Colors.gray600, lineHeight: 24 },
   form: { gap: 24 },
   label: { fontSize: Typography.base, color: Colors.gray700, marginBottom: 8 },
-  demoIdBox: {
+  passwordInputContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    position: "relative",
+  },
+  passwordToggle: {
+    position: "absolute",
+    right: 12,
+    padding: 8,
+  },
+  errorMessage: {
+    fontSize: Typography.sm,
+    color: Colors.error || "#e74c3c",
+    marginTop: -16,
+    marginBottom: 8,
+  },
+  demoBox: {
     flexDirection: "row",
     alignItems: "center",
     gap: 12,
-    backgroundColor: Colors.teal50,
+    backgroundColor: Colors.teal50 || "#e0f7f6",
     borderWidth: 1,
-    borderColor: Colors.teal200,
+    borderColor: Colors.teal200 || "#b3e5e0",
     borderRadius: 12,
     padding: 16,
   },
-  demoIdIcon: { width: 40, height: 40, borderRadius: 20, backgroundColor: Colors.white, alignItems: "center", justifyContent: "center" },
-  demoIdContent: { flex: 1 },
-  demoIdTitle: { fontSize: Typography.xs, color: Colors.gray600, marginBottom: 4 },
-  demoIdValue: { fontSize: Typography.base, fontWeight: Typography.semibold, color: Colors.teal, marginBottom: 2 },
-  demoIdHint: { fontSize: Typography.xs, color: Colors.gray500, fontStyle: "italic" },
+  demoIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: Colors.white,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  demoContent: { flex: 1 },
+  demoTitle: { fontSize: Typography.xs, color: Colors.gray600, marginBottom: 4 },
+  demoValue: { fontSize: Typography.xs, color: Colors.teal, marginBottom: 2 },
+  demoHint: { fontSize: Typography.xs, color: Colors.gray500, fontStyle: "italic" },
   createAccount: { flexDirection: "row", alignItems: "flex-start", gap: 8, paddingTop: 8 },
   createAccountText: { flex: 1, fontSize: Typography.sm, color: Colors.gray600, lineHeight: 20 },
 })

@@ -21,7 +21,7 @@ import { Colors } from "../../constants/Colors"
 const BUSINESS_TYPES = [
   { value: "restaurant", label: "Restaurant", icon: "restaurant" },
   { value: "bar", label: "Bar", icon: "beer" },
-  { value: "supermarket", label: "Supermarket", icon: "cart" },
+  { value: "retail", label: "Retail", icon: "cart" },
   { value: "pharmacy", label: "Pharmacy", icon: "medical" },
   { value: "gas_station", label: "Gas Station", icon: "car" },
   { value: "boutique", label: "Boutique", icon: "shirt" },
@@ -37,6 +37,8 @@ export const OnboardingScreen = ({ navigation }: any) => {
   const [business, setBusiness] = useState({
     name: "",
     type: "",
+    address: "",
+    city: "",
     phone: "",
     email: "",
   })
@@ -45,6 +47,8 @@ export const OnboardingScreen = ({ navigation }: any) => {
     firstName: "",
     lastName: "",
     email: "",
+    password: "",
+    confirmPassword: "",
   })
 
   const clearError = (field: string) => {
@@ -64,6 +68,8 @@ export const OnboardingScreen = ({ navigation }: any) => {
 
   const validateStep2 = (): boolean => {
     const e: Record<string, string> = {}
+    if (!business.address.trim()) e.address = "Business address is required"
+    if (!business.city.trim()) e.city = "City is required"
     if (business.phone.trim() && !/^[0-9+\-\s()]+$/.test(business.phone.trim())) {
       e.phone = "Invalid phone number format"
     }
@@ -83,6 +89,14 @@ export const OnboardingScreen = ({ navigation }: any) => {
     } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(admin.email.trim())) {
       e.email = "Invalid email address"
     }
+    if (!admin.password.trim()) {
+      e.password = "Password is required"
+    } else if (admin.password.length < 4) {
+      e.password = "Password must be at least 4 characters"
+    }
+    if (admin.password !== admin.confirmPassword) {
+      e.confirmPassword = "Passwords do not match"
+    }
     setErrors(e)
     return Object.keys(e).length === 0
   }
@@ -92,20 +106,25 @@ export const OnboardingScreen = ({ navigation }: any) => {
       return business.name.trim() !== "" && business.type !== ""
     }
     if (step === 2) {
+      const addressValid = business.address.trim() !== ""
+      const cityValid = business.city.trim() !== ""
       const phoneValid = !business.phone.trim() || /^[0-9+\-\s()]+$/.test(business.phone.trim())
       const emailValid = !business.email.trim() || /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(business.email.trim())
-      return phoneValid && emailValid
+      return addressValid && cityValid && phoneValid && emailValid
     }
     if (step === 3) {
       return (
         admin.firstName.trim() !== "" &&
         admin.lastName.trim() !== "" &&
         admin.email.trim() !== "" &&
-        /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(admin.email.trim())
+        /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(admin.email.trim()) &&
+        admin.password.trim() !== "" &&
+        admin.password.length >= 4 &&
+        admin.password === admin.confirmPassword
       )
     }
     return false
-  }, [step, business.name, business.type, business.phone, business.email, admin])
+  }, [step, business.name, business.type, business.address, business.city, business.phone, business.email, admin])
 
   const handleNext = () => {
     let isValid = false
@@ -134,13 +153,16 @@ export const OnboardingScreen = ({ navigation }: any) => {
         business: {
           name: business.name.trim(),
           type: business.type,
+          address: business.address.trim(),
+          city: business.city.trim(),
           email: business.email.trim() || undefined,
           phone: business.phone.trim() || undefined,
         },
-        owner: {
-          firstName: admin.firstName.trim(),
-          lastName: admin.lastName.trim(),
+        user: {
+          first_name: admin.firstName.trim(),
+          last_name: admin.lastName.trim(),
           email: admin.email.trim(),
+          password: admin.password,
         },
       })
       navigation.replace("Login")
@@ -226,6 +248,28 @@ export const OnboardingScreen = ({ navigation }: any) => {
             {step === 2 && (
               <>
                 <Input
+                  label="Business Address"
+                  placeholder="123 Main Street"
+                  value={business.address}
+                  onChangeText={(v) => {
+                    setBusiness({ ...business, address: v })
+                    clearError("address")
+                  }}
+                  error={errors.address}
+                />
+
+                <Input
+                  label="City"
+                  placeholder="New York"
+                  value={business.city}
+                  onChangeText={(v) => {
+                    setBusiness({ ...business, city: v })
+                    clearError("city")
+                  }}
+                  error={errors.city}
+                />
+
+                <Input
                   label="Business Phone (optional)"
                   placeholder="+1 (555) 123-4567"
                   value={business.phone}
@@ -288,6 +332,30 @@ export const OnboardingScreen = ({ navigation }: any) => {
                   keyboardType="email-address"
                   autoCapitalize="none"
                   error={errors.email}
+                />
+
+                <Input
+                  label="Password"
+                  placeholder="Enter a strong password"
+                  value={admin.password}
+                  onChangeText={(v) => {
+                    setAdmin({ ...admin, password: v })
+                    clearError("password")
+                  }}
+                  secureTextEntry
+                  error={errors.password}
+                />
+
+                <Input
+                  label="Confirm Password"
+                  placeholder="Re-enter your password"
+                  value={admin.confirmPassword}
+                  onChangeText={(v) => {
+                    setAdmin({ ...admin, confirmPassword: v })
+                    clearError("confirmPassword")
+                  }}
+                  secureTextEntry
+                  error={errors.confirmPassword}
                 />
               </>
             )}

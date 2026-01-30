@@ -30,12 +30,12 @@ api.interceptors.response.use(
         try {
           const res = await axios.post(
             `${API_BASE_URL}${API_ENDPOINTS.auth.refresh}`,
-            { refreshToken }
+            { refresh_token: refreshToken }
           );
 
-          const { accessToken } = res.data;
-          await AsyncStorage.setItem("accessToken", accessToken);
-          originalRequest.headers["Authorization"] = `Bearer ${accessToken}`;
+          const { access_token } = res.data;
+          await AsyncStorage.setItem("accessToken", access_token);
+          originalRequest.headers["Authorization"] = `Bearer ${access_token}`;
 
           return api(originalRequest);
         } catch (refreshErr) {
@@ -53,13 +53,19 @@ api.interceptors.response.use(
 );
 
 export const AuthService = {
-  login: async (identifier: string, pin: string): Promise<LoginResponse> => {
-    const res = await api.post(API_ENDPOINTS.auth.login, { identifier, pin });
+  login: async (email: string, password: string): Promise<LoginResponse> => {
+    const res = await api.post(API_ENDPOINTS.auth.login, { email, password });
 
-    await AsyncStorage.setItem("accessToken", res.data.accessToken);
-    await AsyncStorage.setItem("refreshToken", res.data.refreshToken);
+    await AsyncStorage.setItem("accessToken", res.data.access_token);
+    await AsyncStorage.setItem("refreshToken", res.data.refresh_token);
 
-    return res.data;
+    return {
+      user: res.data.user,
+      tenant: res.data.tenant,
+      business: res.data.business,
+      accessToken: res.data.access_token,
+      refreshToken: res.data.refresh_token,
+    };
   },
 
   logout: async (): Promise<void> => {
@@ -68,25 +74,25 @@ export const AuthService = {
     await AsyncStorage.removeItem("refreshToken");
   },
 
-  // registerBusiness: async (payload: Partial<Business>): Promise<Business> => {
-  //   const res = await api.post(API_ENDPOINTS.onboarding.registerBusiness, payload);
-  //   return res.data.business;
-  // },
-
   registerBusiness: async (
-  payload: RegisterBusinessPayload
-): Promise<RegisterBusinessResponse> => {
-  const res = await api.post(API_ENDPOINTS.onboarding.registerBusiness, payload)
-  
-  // Assuming backend returns full auth response after onboarding
-  const data = res.data // { user, business, tenant, accessToken, refreshToken }
+    payload: RegisterBusinessPayload
+  ): Promise<RegisterBusinessResponse> => {
+    const res = await api.post(API_ENDPOINTS.onboarding.registerBusiness, payload);
 
-  // Save tokens
-  await AsyncStorage.setItem("accessToken", data.accessToken)
-  await AsyncStorage.setItem("refreshToken", data.refreshToken)
+    const data = res.data;
 
-  return data
-},
+    // Save tokens
+    await AsyncStorage.setItem("accessToken", data.access_token || data.accessToken);
+    await AsyncStorage.setItem("refreshToken", data.refresh_token || data.refreshToken);
+
+    return {
+      user: data.user,
+      business: data.business,
+      tenant: data.tenant,
+      accessToken: data.access_token || data.accessToken,
+      refreshToken: data.refresh_token || data.refreshToken,
+    };
+  },
 
   /**
    * Set a PIN for a user (used after onboarding)

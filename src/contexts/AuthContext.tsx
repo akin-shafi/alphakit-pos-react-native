@@ -10,24 +10,12 @@ interface AuthContextType {
   tenant: Tenant | null
   business: Business | null
   isAuthenticated: boolean
+  loading: boolean
 
-  login: (identifier: string, pin: string) => Promise<void>
+  login: (email: string, password: string) => Promise<void>
   logout: () => Promise<void>
 
-  registerBusiness: (payload: {
-    business: {
-      name: string
-      type: string
-      address?: string
-      email?: string
-      phone?: string
-    }
-    owner: {
-      firstName: string
-      lastName: string
-      email: string
-    }
-  }) => Promise<void>
+  registerBusiness: (payload: RegisterBusinessPayload) => Promise<void>
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined)
@@ -36,6 +24,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [user, setUser] = useState<User | null>(null)
   const [tenant, setTenant] = useState<Tenant | null>(null)
   const [business, setBusiness] = useState<Business | null>(null)
+  const [loading, setLoading] = useState(false)
 
   useEffect(() => {
     restoreSession()
@@ -43,59 +32,73 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const restoreSession = async () => {
     try {
-      const [user, tenant, business] = await Promise.all([
+      const [userStr, tenantStr, businessStr] = await Promise.all([
         AsyncStorage.getItem("user"),
         AsyncStorage.getItem("tenant"),
         AsyncStorage.getItem("business"),
       ])
 
-      if (user) setUser(JSON.parse(user))
-      if (tenant) setTenant(JSON.parse(tenant))
-      if (business) setBusiness(JSON.parse(business))
+      if (userStr) setUser(JSON.parse(userStr))
+      if (tenantStr) setTenant(JSON.parse(tenantStr))
+      if (businessStr) setBusiness(JSON.parse(businessStr))
     } catch (e) {
-      console.warn("Failed to restore session")
+      console.warn("Failed to restore session", e)
     }
   }
 
-  const login = async (identifier: string, pin: string) => {
-    const res = await AuthService.login(identifier, pin)
+  const login = async (email: string, password: string) => {
+    setLoading(true)
+    try {
+      const res = await AuthService.login(email, password)
 
-    setUser(res.user)
-    setTenant(res.tenant)
-    setBusiness(res.business)
+      setUser(res.user)
+      setTenant(res.tenant)
+      setBusiness(res.business)
 
-    await AsyncStorage.multiSet([
-      ["user", JSON.stringify(res.user)],
-      ["tenant", JSON.stringify(res.tenant)],
-      ["business", JSON.stringify(res.business)],
-    ])
+      await AsyncStorage.multiSet([
+        ["user", JSON.stringify(res.user)],
+        ["tenant", JSON.stringify(res.tenant)],
+        ["business", JSON.stringify(res.business)],
+      ])
+    } finally {
+      setLoading(false)
+    }
   }
 
-  const registerBusiness = async (
-  payload: RegisterBusinessPayload
-): Promise<void> => {
-  const res = await AuthService.registerBusiness(payload)
+  const registerBusiness = async (payload: RegisterBusinessPayload): Promise<void> => {
+    setLoading(true)
+    try {
+      const res = await AuthService.registerBusiness(payload)
 
-  // Now res has user, business, tenant, tokens
-  setUser(res.user)
-  setTenant(res.tenant)
-  setBusiness(res.business)
+      setUser(res.user)
+      setTenant(res.tenant)
+      setBusiness(res.business)
 
-  await AsyncStorage.multiSet([
-    ["user", JSON.stringify(res.user)],
-    ["tenant", JSON.stringify(res.tenant)],
-    ["business", JSON.stringify(res.business)],
-    ["accessToken", res.accessToken],
-    ["refreshToken", res.refreshToken],
-  ])
-}
+      await AsyncStorage.multiSet([
+        ["user", JSON.stringify(res.user)],
+        ["tenant", JSON.stringify(res.tenant)],
+        ["business", JSON.stringify(res.business)],
+        ["accessToken", res.accessToken],
+        ["refreshToken", res.refreshToken],
+      ])
+    } finally {
+      setLoading(false)
+    }
+  }
 
   const logout = async () => {
-    await AuthService.logout()
-    await AsyncStorage.multiRemove(["user", "tenant", "business"])
-    setUser(null)
-    setTenant(null)
-    setBusiness(null)
+    setLoading(true)
+    try {
+      await AuthService.logout()
+    } catch (e) {
+      console.warn("Logout error", e)
+    } finally {
+      await AsyncStorage.multiRemove(["user", "tenant", "business", "accessToken", "refreshToken"])
+      setUser(null)
+      setTenant(null)
+      setBusiness(null)
+      setLoading(false)
+    }
   }
 
   return (
@@ -105,6 +108,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         tenant,
         business,
         isAuthenticated: !!user,
+        loading,
         login,
         logout,
         registerBusiness,
