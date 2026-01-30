@@ -1,107 +1,277 @@
-# AlphaKit POS - React Native
+# Mobile POS Application
 
-**AlphaKit POS** is a store-front Point of Sale (POS) solution built with React Native, designed for retail businesses. It provides features for inventory management, sales tracking, and staff shift management, allowing businesses to operate efficiently and streamline daily operations.
-
-App Screenshots
-<p align="center"> <img src="https://github.com/akin-shafi/alphakit-pos-react-native/blob/main/screnshorts/welcome.jpeg" alt="Welcome Screen" width="250"/> <img src="https://github.com/akin-shafi/alphakit-pos-react-native/blob/main/screnshorts/signup.jpeg" alt="Signup Screen" width="250"/> <img src="https://github.com/akin-shafi/alphakit-pos-react-native/blob/main/screnshorts/home.jpeg" alt="Home Screen" width="250"/> </p>
-
-From left to right:
-Welcome Screen · Signup Screen · Home Dashboard
+A professional Point of Sale (POS) application for Android terminals with thermal printer support, built with React Native and Expo.
 
 ## Features
 
-- Inventory management: Add, update, and track stock levels
-- Sales management: Record sales, generate receipts, and track revenue
-- Staff management: Manage shifts, roles, and attendance
-- Customer management: Maintain customer records and purchase history
-- Reports: Generate sales and inventory reports
-- Offline support: Continue working even without internet connectivity
-- Integration with backend API for real-time updates
+### Authentication & Onboarding
+- Splash screen with branding
+- Business registration flow
+- Multi-step onboarding (business setup + admin creation)
+- Secure PIN-based authentication
+- Business ID + PIN login system
+- Role-based access control (Admin, Manager, Cashier)
+
+### POS System
+- Fast product browsing with category filters
+- Real-time search functionality
+- Large touch-optimized product tiles
+- Shopping cart with quantity management
+- Flexible payment handling with configurable modes
+- Support for in-app card payments and external terminals (MoniePoint, OPay)
+- Payment method selection during checkout
+- Thermal receipt printing simulation
+- Online/Offline status indicators
+
+### Payment & Checkout
+- Configurable default payment behavior:
+  - Ask every time (recommended)
+  - Default to in-app card processing
+  - Default to external terminals
+- Multiple payment methods:
+  - Cash
+  - Card (In-App)
+  - External Terminal (MoniePoint, OPay, etc.)
+  - Bank Transfer
+  - Credit Sale
+- External terminal workflow with cashier instructions
+- Always print receipts regardless of payment method
+- Override capability for cashiers to choose different payment methods
+
+### Inventory Management
+- Product listing with search and filters
+- Low stock warnings
+- Stock level monitoring
+- Product details with pricing and SKU
+- Category-based organization
+- Role-based edit permissions
+
+### Reports & Analytics
+- Daily, weekly, and monthly sales reports
+- Revenue tracking
+- Transaction summaries
+- Best-selling products
+- Peak hours analysis
+- Role-based access (Admin & Manager only)
+
+### Settings
+- User profile management
+- Business information display
+- Payment & checkout configuration
+- Permission viewer
+- System settings (Printer, Sync, Payments)
+- Secure logout functionality
 
 ## Tech Stack
 
-- **Framework:** React Native
-- **State Management:** Redux / Context API (adjust if different)
-- **Navigation:** React Navigation
-- **Backend Integration:** REST API / GraphQL
-- **Database:** Local storage (SQLite, AsyncStorage) and remote backend
-- **Authentication:** JWT / OAuth (if applicable)
+- **Framework**: React Native with Expo
+- **Navigation**: React Navigation (Stack Navigator)
+- **State Management**: React Context API
+- **Storage**: AsyncStorage for local persistence
+- **UI**: Custom components optimized for POS terminals
+- **Icons**: Expo Vector Icons (Ionicons)
+- **TypeScript**: Full type safety
+
+## Architecture
+
+### Offline-First Design
+- Products cached locally for offline browsing
+- Online-only transactions (MVP requirement)
+- Sync status indicators
+- Prepared for backend API integration
+
+### Role-Based Permissions
+- **Admin**: Full system access including payment configuration
+- **Manager**: Sales, inventory, reports, payment settings
+- **Cashier**: POS operations only
+
+### Business Type Theming
+- Retail (Blue)
+- Restaurant (Red)
+- Pharmacy (Green)
+- Grocery (Purple)
+- Default (Black)
 
 ## Getting Started
 
 ### Prerequisites
-
-- Node.js >= 18.x
-- NPM or Yarn
-- Expo CLI (if using Expo) or React Native CLI
-- Git
-- Android Studio / Xcode for mobile emulators
+- Node.js 18+ installed
+- Expo CLI installed globally
+- Android Studio (for Android development)
+- Android POS terminal or emulator
 
 ### Installation
 
-1. Clone the repository:
-
-```bash
-git clone https://github.com/yourusername/alphakit-pos-react-native.git
-cd alphakit-pos-react-native
-```
-
-2. Install dependencies:
-
-```bash
+1. Install dependencies:
+\`\`\`bash
 npm install
-# or
-yarn install
-```
+\`\`\`
 
-3. Start the development server:
-
-```bash
+2. Start the development server:
+\`\`\`bash
 npm start
-# or
-yarn start
-```
+\`\`\`
 
-4. Run on emulator or device:
-
-```bash
-# For Android
+3. Run on Android:
+\`\`\`bash
 npm run android
-# For iOS
-npm run ios
-```
+\`\`\`
 
-## Project Structure
+### Demo Credentials
 
-```
-alphakit-pos-react-native/
-├── src/
-│   ├── components/       # Reusable UI components
-│   ├── screens/          # App screens (Home, Sales, Inventory, etc.)
-│   ├── navigation/       # Navigation configuration
-│   ├── redux/            # State management
-│   ├── utils/            # Utility functions
-│   ├── services/         # API calls and backend integration
-│   └── App.js            # Main entry point
-├── assets/               # Images, fonts, icons
-├── .env                  # Environment variables
+**Business ID**: BIZ001
+
+**User PINs**:
+- Admin: 1234
+- Manager: 5678
+- Cashier: 9999
+
+## File Structure
+
+\`\`\`
+/mobile-pos-app
+├── /assets                  # Images, fonts, icons
+├── /components              # Reusable UI components
+│   ├── Button.tsx
+│   ├── Input.tsx
+│   ├── Card.tsx
+│   ├── ProductTile.tsx
+│   ├── ReceiptPreview.tsx
+│   ├── StatusBadge.tsx
+│   └── PaymentMethodSelector.tsx
+├── /constants               # App-wide constants
+│   ├── Colors.ts
+│   ├── Typography.ts
+│   └── Roles.ts
+├── /contexts                # React Contexts
+│   ├── AuthContext.tsx
+│   ├── CartContext.tsx
+│   ├── InventoryContext.tsx
+│   └── PaymentConfigContext.tsx
+├── /navigation              # Navigation structure
+│   ├── AppNavigation.tsx
+│   ├── AuthStack.tsx
+│   └── POSStack.tsx
+├── /screens                 # Screen components
+│   ├── /auth
+│   │   ├── SplashScreen.tsx
+│   │   ├── WelcomeScreen.tsx
+│   │   ├── OnboardingScreen.tsx
+│   │   ├── BusinessIDScreen.tsx
+│   │   └── PINScreen.tsx
+│   ├── /pos
+│   │   ├── POSHomeScreen.tsx
+│   │   ├── CartScreen.tsx
+│   │   ├── CheckoutScreen.tsx
+│   │   └── ExternalTerminalScreen.tsx
+│   ├── /inventory
+│   │   └── InventoryScreen.tsx
+│   ├── /reports
+│   │   └── ReportsScreen.tsx
+│   └── /settings
+│       ├── SettingsScreen.tsx
+│       └── PaymentSettingsScreen.tsx
+├── /types                   # TypeScript definitions
+│   └── index.ts
+├── App.tsx                  # Entry point
+├── app.json                 # Expo configuration
 ├── package.json
-└── README.md
-```
+└── tsconfig.json
+\`\`\`
 
-## Contributing
+## Design System
 
-1. Fork the repository
-2. Create a feature branch: `git checkout -b feature/my-feature`
-3. Commit your changes: `git commit -m 'Add new feature'`
-4. Push to branch: `git push origin feature/my-feature`
-5. Open a Pull Request
+### Color Palette
+- **Neutrals**: White, Gray scale, Black
+- **Status**: Success (Green), Warning (Orange), Error (Red), Info (Blue)
+- **Connection**: Online (Green), Offline (Gray), Syncing (Orange)
+- **Business Themes**: Customizable primary colors per business type
+
+### Typography
+- Large touch-friendly font sizes (16-48px)
+- Bold headings for quick scanning
+- High contrast for readability
+- System fonts for performance
+
+### Touch Optimization
+- Minimum 48px touch targets
+- Large buttons and tiles
+- Generous spacing
+- Clear visual feedback
+
+## Payment System
+
+### Configuration
+Merchants can configure their preferred payment behavior in **Settings → Payment & Checkout**:
+
+1. **Default Payment Mode**:
+   - Ask Every Time (Recommended)
+   - Process Card In-App
+   - External Terminal Only
+
+2. **Enabled Payment Methods**:
+   - Toggle each payment method on/off
+   - Cash, Card, External Terminal, Transfer, Credit Sale
+
+### Checkout Flow
+
+1. **Cart Review**: Customer reviews items and total
+2. **Payment Selection**: Based on merchant configuration:
+   - If "Ask Every Time": Shows payment method selector
+   - If default mode set: Uses default (with override option)
+3. **Payment Processing**:
+   - **In-App Payments**: Direct payment processing
+   - **External Terminals**: Shows instruction screen with steps
+4. **Receipt Printing**: Always prints receipt from the app
+
+### External Terminal Flow
+
+When using external terminals (MoniePoint, OPay, etc.):
+1. App displays amount and provider
+2. Shows step-by-step instructions
+3. Cashier processes payment on external device
+4. Cashier confirms "Payment Received" in app
+5. App prints receipt from thermal printer
+
+## Backend Integration (Ready)
+
+The app is structured for easy backend integration:
+
+### API Endpoints (Design)
+- `POST /auth/login` - User authentication
+- `GET /products` - Fetch inventory
+- `POST /sales` - Create transaction (includes payment method and provider)
+- `POST /sync` - Sync offline data
+- `GET /payment-config` - Fetch merchant payment configuration
+- `PUT /payment-config` - Update payment settings
+
+## Thermal Printer Integration
+
+The app includes printer simulation and is ready for real thermal printer integration using:
+- Bluetooth connectivity
+- ESC/POS commands
+- Receipt formatting
+- Print status handling
+
+## Future Enhancements
+
+- Real backend API integration
+- Actual Bluetooth thermal printer support
+- Payment gateway integrations (Stripe, Paystack)
+- Real-time external terminal status checking
+- Barcode scanning
+- Customer management
+- Advanced analytics
+- Multi-branch synchronization
+- Cloud backup
+- Receipt email/SMS
+- Split payments
+- Refund processing
 
 ## License
 
-This project is licensed under the MIT License. See the [LICENSE](LICENSE) file for details.
+Proprietary - All rights reserved
 
-## Contact
+## Support
 
-For questions or support, contact **[Your Name]** at **[your.email@example.com]**.
-
+For support and questions, contact your system administrator.
