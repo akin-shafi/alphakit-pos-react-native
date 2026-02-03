@@ -3,26 +3,41 @@ import { POSHomeScreen } from "../screens/pos/POSHomeScreen"
 import { CartScreen } from "../screens/pos/CartScreen"
 import { CheckoutScreen } from "../screens/pos/CheckoutScreen"
 import { ExternalTerminalScreen } from "../screens/pos/ExternalTerminalScreen"
-import { InventoryScreen } from "../screens/inventory/InventoryScreen"
-import { ReportsScreen } from "../screens/reports/ReportsScreen"
-import  DetailedReportScreen  from "../screens/reports/DetailedReportScreen"
-import { SettingsScreen } from "../screens/settings/SettingsScreen"
+import DetailedReportScreen from "../screens/reports/DetailedReportScreen"
 import { PaymentSettingsScreen } from "../screens/settings/PaymentSettingsScreen"
+import { StaffManagementScreen } from "../screens/settings/StaffManagementScreen"
+import { PrinterSettingsScreen } from "../screens/settings/PrinterSettingsScreen"
+import { ReceiptSettingsScreen } from "../screens/settings/ReceiptSettingsScreen"
+import { MainTabs } from "./MainTabs"
+import { SubscriptionPlansScreen } from "../screens/subscription/SubscriptionPlansScreen"
+import { SubscriptionExpiredScreen } from "../screens/subscription/SubscriptionExpiredScreen"
+import { DashboardScreen } from "../screens/home/DashboardScreen"
+import { ProfileScreen } from "../screens/settings/ProfileScreen"
+import { RoleManagementScreen } from "../screens/settings/RoleManagementScreen"
+import { ShiftManagementScreen } from "../screens/settings/ShiftManagementScreen"
 
 const Stack = createStackNavigator()
 
 export const POSStack = () => {
   return (
-    <Stack.Navigator screenOptions={{ headerShown: false }}>
-      <Stack.Screen name="POSHome" component={POSHomeScreen} />
-      <Stack.Screen name="Cart" component={CartScreen} />
+    <Stack.Navigator initialRouteName="Dashboard" screenOptions={{ headerShown: false }}>
+      <Stack.Screen name="Dashboard" component={DashboardScreen} />
+      <Stack.Screen name="MainTabs" component={MainTabs} />
+      
+      {/* Sub-screens */}
+      <Stack.Screen name="Cart" component={CartScreen} />  
       <Stack.Screen name="Checkout" component={CheckoutScreen} />
       <Stack.Screen name="ExternalTerminal" component={ExternalTerminalScreen} />
-      <Stack.Screen name="Inventory" component={InventoryScreen} />
-      <Stack.Screen name="Reports" component={ReportsScreen} />
       <Stack.Screen name="DetailedReport" component={DetailedReportScreen} />
-      <Stack.Screen name="Settings" component={SettingsScreen} />
       <Stack.Screen name="PaymentSettings" component={PaymentSettingsScreen} />
+      <Stack.Screen name="StaffManagement" component={StaffManagementScreen} /> 
+      <Stack.Screen name="PrinterSettings" component={PrinterSettingsScreen} />
+      <Stack.Screen name="ReceiptSettings" component={ReceiptSettingsScreen} />
+      <Stack.Screen name="SubscriptionPlans" component={SubscriptionPlansScreen} />
+      <Stack.Screen name="SubscriptionExpired" component={SubscriptionExpiredScreen} />
+      <Stack.Screen name="Profile" component={ProfileScreen} />
+      <Stack.Screen name="RoleManagement" component={RoleManagementScreen} />
+      <Stack.Screen name="ShiftManagement" component={ShiftManagementScreen} />
     </Stack.Navigator>
   )
 }

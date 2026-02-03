@@ -1,18 +1,28 @@
-"use client"
-
-import type React from "react"
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert } from "react-native"
+import { useState } from "react";
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert, ActivityIndicator } from "react-native"
 import { Ionicons } from "@expo/vector-icons"
 import { useAuth } from "../../contexts/AuthContext"
-import { RolePermissions } from "../../constants/Roles"
+import { RolePermissions, UserRole } from "../../constants/Roles"
 import { Colors, BusinessThemes } from "../../constants/Colors"
 import { Typography } from "../../constants/Typography"
+import { AuthService } from "../../services/AuthService"
 
 export const SettingsScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
-  const { business, user, logout } = useAuth()
+  const { business, user, logout, setBusiness } = useAuth()
+  const [loading, setLoading] = useState(false)
 
   const theme = business ? BusinessThemes[business.type] : BusinessThemes.default
-  const permissions = user ? RolePermissions[user.role] : null
+  const role =
+  user?.role?.toLowerCase() as UserRole | undefined;
+
+  const permissions = role ? RolePermissions[role] : null;
+
+  console.log("business: ", business)
+  console.log("business type: ", business.type)
+  console.log("BusinessThemes: ", BusinessThemes[business.type])
+  console.log("theme: ", theme)
+
+
 
   const handleLogout = () => {
     Alert.alert("Logout", "Are you sure you want to logout?", [
@@ -25,140 +35,212 @@ export const SettingsScreen: React.FC<{ navigation: any }> = ({ navigation }) =>
     ])
   }
 
+  const handleChangeCurrency = () => {
+    const currencies = [
+      { label: "Nigerian Naira (₦)", value: "NGN" },
+      { label: "US Dollar ($)", value: "USD" },
+      { label: "British Pound (£)", value: "GBP" },
+      { label: "Euro (€)", value: "EUR" },
+    ]
+
+    Alert.alert(
+      "Change Currency",
+      "Select your business currency",
+      [
+        ...currencies.map((c) => ({
+          text: c.label,
+          onPress: async () => {
+            if (!business?.id) return
+            setLoading(true)
+            try {
+              const updated = await AuthService.updateBusiness(business.id, { currency: c.value })
+              setBusiness(updated)
+              Alert.alert("Success", `Currency updated to ${c.value}`)
+            } catch (error) {
+              Alert.alert("Error", "Failed to update currency. Please try again.")
+            } finally {
+              setLoading(false)
+            }
+          },
+        })),
+        { text: "Cancel", style: "cancel" },
+      ],
+      { cancelable: true },
+    )
+  }
+
   const getUserInitials = () => {
-    if (!user?.name) return "U"
-    const names = user.name.split(" ")
+    if (!user?.first_name) return "U"
+    const names = user.first_name.split(" ")
     if (names.length >= 2) {
       return `${names[0][0]}${names[1][0]}`.toUpperCase()
     }
-    return user.name[0].toUpperCase()
+    return user.first_name[0].toUpperCase()
   }
+
+
 
   return (
     <View style={styles.container}>
       <View style={styles.header}>
-        <Text style={styles.businessName}>{business?.name || "Standford"}</Text>
-        <Text style={styles.businessInfo}>
-          {business?.type.charAt(0).toUpperCase() + business?.type.slice(1)} • Business Id:{" "}
-          {business?.businessId || "2"}
-        </Text>
+        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+          <View>
+            <Text style={styles.businessName}>{business?.name || "Fiber"}</Text>
+            <Text style={styles.businessInfo}>
+              {business?.type.charAt(0).toUpperCase() + business?.type.slice(1)} • Business Id:{" "}
+              {business?.id || "2"}
+            </Text>
+          </View>
+          <TouchableOpacity 
+            style={{ padding: 8, backgroundColor: Colors.white, borderRadius: 8, borderWidth: 1, borderColor: Colors.gray200 }} 
+            onPress={() => navigation.navigate("Dashboard")}
+          >
+            <Ionicons name="apps" size={24} color={Colors.teal} />
+          </TouchableOpacity>
+        </View>
       </View>
 
       <ScrollView contentContainerStyle={styles.content}>
-        <View style={styles.profileCard}>
-          <View style={styles.avatar}>
+        <TouchableOpacity style={styles.profileCard} onPress={() => navigation.navigate("Profile")}>
+          <View style={[styles.avatar, { backgroundColor: theme.primary }]}>
             <Text style={styles.avatarText}>{getUserInitials()}</Text>
           </View>
           <View style={styles.profileInfo}>
-            <Text style={styles.profileName}>{user?.name || "Shafi"}</Text>
-            <Text style={styles.profileUsername}>{user?.email?.split("@")[0].toUpperCase() || "AKINROPO"}</Text>
+            <Text style={styles.profileName}>{user?.first_name + ' ' + user?.last_name || "John"}</Text>
+            <Text style={styles.profileUsername}>{user?.email || "DOE"}</Text>
             <View style={styles.roleBadge}>
               <Text style={styles.roleBadgeText}>{user?.role || "Admin"}</Text>
             </View>
           </View>
-        </View>
+        </TouchableOpacity>
 
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>BUSINESS INFORMATION</Text>
-          <View style={styles.card}>
-            <View style={styles.infoItem}>
-              <View style={[styles.iconContainer, { backgroundColor: Colors.red50 }]}>
-                <Ionicons name="business" size={20} color={Colors.error} />
+        { (permissions?.canManageSettings || permissions?.canManageBusiness) && (
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>BUSINESS INFORMATION</Text>
+            <View style={styles.card}>
+              <View style={styles.infoItem}>
+                <View style={[styles.iconContainer, { backgroundColor: theme.primaryLight }]}>
+                  <Ionicons name="business" size={20} color={theme.primary} />
+                </View>
+                <View style={styles.infoContent}>
+                  <Text style={styles.infoLabel}>{business?.name || "Standford"}</Text>
+                  <Text style={styles.infoSubtitle}>
+                    {business?.type.charAt(0).toUpperCase() + business?.type.slice(1)}
+                  </Text>
+                </View>
               </View>
-              <View style={styles.infoContent}>
-                <Text style={styles.infoLabel}>{business?.name || "Standford"}</Text>
-                <Text style={styles.infoSubtitle}>
-                  {business?.type.charAt(0).toUpperCase() + business?.type.slice(1)}
-                </Text>
+
+              <View style={styles.infoItem}>
+                <View style={[styles.iconContainer, { backgroundColor: theme.primaryLight }]}>
+                  <Ionicons name="location" size={20} color={theme.primary} />
+                </View>
+                <View style={styles.infoContent}>
+                  <Text style={styles.infoLabel}>Branch</Text>
+                  <Text style={styles.infoSubtitle}>Main location</Text>
+                </View>
               </View>
+
+              <MenuButton
+                icon="cash"
+                label="Default Currency"
+                subtitle={`Current: ${business?.currency || "NGN"}`}
+                onPress={handleChangeCurrency}
+                iconColor={theme.primary}
+                iconBg={theme.primaryLight}
+                rightText={business?.currency}
+              />
+              <MenuButton
+                icon="card"
+                label="Subscription"
+                subtitle="Manage plans & billing"
+                onPress={() => navigation.navigate("SubscriptionPlans")}
+                iconColor={theme.primary}
+                iconBg={theme.primaryLight}
+              />
             </View>
+          </View>
+        )}
 
-            <View style={styles.infoItem}>
-              <View style={[styles.iconContainer, { backgroundColor: Colors.teal50 }]}>
-                <Ionicons name="location" size={20} color={Colors.teal} />
-              </View>
-              <View style={styles.infoContent}>
-                <Text style={styles.infoLabel}>Branch</Text>
-                <Text style={styles.infoSubtitle}>Main location</Text>
-              </View>
+        { permissions?.canManageSettings && (
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>POS CONFIGURATION</Text>
+            <View style={styles.card}>
+              <MenuButton
+                icon="print"
+                label="Printer Setup"
+                subtitle="Configure thermal printer"
+                onPress={() => navigation.navigate("PrinterSettings")}
+                iconColor={theme.primary}
+                iconBg={theme.primaryLight}
+              />
+              <MenuButton
+                icon="receipt"
+                label="Receipt Template"
+                subtitle="Customize receipt layout"
+                onPress={() => navigation.navigate("ReceiptSettings")}
+                iconColor={theme.primary}
+                iconBg={theme.primaryLight}
+              />
+              <MenuButton
+                icon="calculator"
+                label="Tax Settings"
+                subtitle="Manage tax rates"
+                rightText="0%"
+                onPress={() => {}}
+                iconColor={theme.primary}
+                iconBg={theme.primaryLight}
+              />
             </View>
           </View>
-        </View>
+        )}
 
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>POS CONFIGURATION</Text>
-          <View style={styles.card}>
-            <MenuButton
-              icon="print"
-              label="Printer Setup"
-              subtitle="Configure thermal printer"
-              onPress={() => {}}
-              iconColor={Colors.teal}
-              iconBg={Colors.teal50}
-            />
-            <MenuButton
-              icon="receipt"
-              label="Receipt Template"
-              subtitle="Customize receipt layout"
-              onPress={() => {}}
-              iconColor={Colors.teal}
-              iconBg={Colors.teal50}
-            />
-            <MenuButton
-              icon="calculator"
-              label="Tax Settings"
-              subtitle="Manage tax rates"
-              rightText="0%"
-              onPress={() => {}}
-              iconColor={Colors.teal}
-              iconBg={Colors.teal50}
-            />
+        { permissions?.canManageUsers && (
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>USER MANAGEMENT</Text>
+            <View style={styles.card}>
+              <MenuButton
+                icon="people"
+                label="Staff Management"
+                subtitle="Add, edit, or remove staff members"
+                onPress={() => navigation.navigate("StaffManagement")}
+                iconColor={theme.primary}
+                iconBg={theme.primaryLight}
+              />
+              <MenuButton
+                icon="shield-checkmark"
+                label="User Roles"
+                subtitle="Configure permissions"
+                onPress={() => navigation.navigate("RoleManagement")}
+                iconColor={theme.primary}
+                iconBg={theme.primaryLight}
+              />
+            </View>
           </View>
-        </View>
+        )}
 
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>USER MANAGEMENT</Text>
-          <View style={styles.card}>
-            <MenuButton
-              icon="people"
-              label="Manage Users"
-              subtitle="Add, edit, or remove users"
-              onPress={() => {}}
-              iconColor={Colors.teal}
-              iconBg={Colors.teal50}
-            />
-            <MenuButton
-              icon="shield-checkmark"
-              label="User Roles"
-              subtitle="Configure permissions"
-              onPress={() => {}}
-              iconColor={Colors.teal}
-              iconBg={Colors.teal50}
-            />
+        { permissions?.canManageShifts && (
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>SHIFT MANAGEMENT</Text>
+            <View style={styles.card}>
+              <MenuButton
+                icon="time"
+                label="Current Shift"
+                subtitle="No active shift"
+                onPress={() => navigation.navigate("ShiftManagement")}
+                iconColor={theme.primary}
+                iconBg={theme.primaryLight}
+              />
+              <MenuButton
+                icon="calendar"
+                label="Shift History"
+                subtitle="View past shifts"
+                onPress={() => navigation.navigate("ShiftManagement")}
+                iconColor={theme.primary}
+                iconBg={theme.primaryLight}
+              />
+            </View>
           </View>
-        </View>
-
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>SHIFT MANAGEMENT</Text>
-          <View style={styles.card}>
-            <MenuButton
-              icon="time"
-              label="Current Shift"
-              subtitle="No active shift"
-              onPress={() => {}}
-              iconColor={Colors.teal}
-              iconBg={Colors.teal50}
-            />
-            <MenuButton
-              icon="calendar"
-              label="Shift History"
-              subtitle="View past shifts"
-              onPress={() => {}}
-              iconColor={Colors.teal}
-              iconBg={Colors.teal50}
-            />
-          </View>
-        </View>
+        )}
 
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>SUPPORT & ABOUT</Text>
@@ -168,13 +250,13 @@ export const SettingsScreen: React.FC<{ navigation: any }> = ({ navigation }) =>
               label="Help & Support"
               subtitle="Get help with the app"
               onPress={() => {}}
-              iconColor={Colors.teal}
-              iconBg={Colors.teal50}
+              iconColor={theme.primary}
+              iconBg={theme.primaryLight}
             />
             <View style={styles.menuItem}>
               <View style={styles.menuLeft}>
-                <View style={[styles.iconContainer, { backgroundColor: Colors.teal50 }]}>
-                  <Ionicons name="information-circle" size={20} color={Colors.teal} />
+                <View style={[styles.iconContainer, { backgroundColor: theme.primaryLight }]}>
+                  <Ionicons name="information-circle" size={20} color={theme.primary} />
                 </View>
                 <View style={styles.menuContent}>
                   <Text style={styles.menuLabel}>About</Text>

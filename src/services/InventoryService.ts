@@ -1,6 +1,6 @@
 // src/services/InventoryService.ts
 
-import axios from "axios";// We'll create this shared axios instance next
+import apiClient from "./ApiClient";
 import { API_ENDPOINTS } from "../config/api";
 import type { Product } from "../types";
 
@@ -12,7 +12,7 @@ export const InventoryService = {
    */
   getProducts: async (businessId: string): Promise<Product[]> => {
     const endpoint = API_ENDPOINTS.inventory.productsByBusiness(businessId);
-    const res = await axios.get(endpoint);
+    const res = await apiClient.get(endpoint);
     return res.data;
   },
 
@@ -22,7 +22,7 @@ export const InventoryService = {
    * @returns Created product
    */
   createProduct: async (product: Partial<Product>): Promise<Product> => {
-    const res = await axios.post(API_ENDPOINTS.inventory.products, product);
+    const res = await apiClient.post(API_ENDPOINTS.inventory.products, product);
     return res.data;
   },
 
@@ -37,7 +37,7 @@ export const InventoryService = {
     updates: Partial<Product>
   ): Promise<Product> => {
     const endpoint = API_ENDPOINTS.inventory.productById(productId);
-    const res = await axios.put(endpoint, updates);
+    const res = await apiClient.put(endpoint, updates);
     return res.data;
   },
 
@@ -48,7 +48,7 @@ export const InventoryService = {
    */
   deleteProduct: async (productId: string): Promise<void> => {
     const endpoint = API_ENDPOINTS.inventory.productById(productId);
-    await axios.delete(endpoint);
+    await apiClient.delete(endpoint);
   },
 };
 

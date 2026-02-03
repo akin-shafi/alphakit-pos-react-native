@@ -1,9 +1,14 @@
 import type React from "react"
-import { Modal, View, Text, StyleSheet, ScrollView, TouchableOpacity, SafeAreaView } from "react-native"
+import { Modal, View, Text, StyleSheet, ScrollView, TouchableOpacity, StatusBar } from "react-native"
+import { SafeAreaView } from "react-native-safe-area-context"
 import { Ionicons } from "@expo/vector-icons"
 import type { Sale } from "../types"
 import { Colors } from "../constants/Colors"
 import { Typography } from "../constants/Typography"
+import { useAuth } from "../contexts/AuthContext"
+import { formatCurrency } from "../utils/Formatter"
+import { useNavigation } from "@react-navigation/native"
+import { ReceiptService } from "../services/ReceiptService"
 
 interface ReceiptModalProps {
   visible: boolean
@@ -12,22 +17,38 @@ interface ReceiptModalProps {
 }
 
 export const ReceiptModal: React.FC<ReceiptModalProps> = ({ visible, onClose, sale }) => {
+  const { business } = useAuth()
+  const navigation = useNavigation<any>()
+  
   if (!sale) return null
 
-  const handleReprint = () => {
-    // Simulate receipt printing
-    alert("Receipt sent to printer")
+  const handleReprint = async () => {
+    if (sale && business) {
+      try {
+        await ReceiptService.printReceipt(sale, business)
+      } catch (error) {
+        alert("Failed to print receipt")
+      }
+    }
+  }
+  
+  const handleGoHome = () => {
+      onClose()
+      navigation.navigate("MainTabs", { screen: "POSHome" })
   }
 
   return (
     <Modal visible={visible} animationType="slide" presentationStyle="fullScreen" onRequestClose={onClose}>
-      <SafeAreaView style={styles.container}>
+      <SafeAreaView style={styles.container} edges={['left', 'right', 'bottom']}>
+        <StatusBar barStyle="dark-content" backgroundColor={Colors.white} />
         <View style={styles.header}>
           <TouchableOpacity onPress={onClose} style={styles.backButton}>
             <Ionicons name="arrow-back" size={24} color={Colors.gray900} />
           </TouchableOpacity>
           <Text style={styles.headerTitle}>Receipt Details</Text>
-          <View style={styles.placeholder} />
+          <TouchableOpacity onPress={handleGoHome} style={styles.backButton}>
+            <Ionicons name="home-outline" size={24} color={Colors.gray900} />
+          </TouchableOpacity>
         </View>
 
         <ScrollView style={styles.content} contentContainerStyle={styles.contentContainer}>
@@ -36,15 +57,23 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({ visible, onClose, sa
               <View style={styles.storeIconContainer}>
                 <Ionicons name="storefront" size={32} color={Colors.teal} />
               </View>
-              <Text style={styles.receiptTitle}>SALES RECEIPT</Text>
-              <Text style={styles.receiptDate}>{new Date(sale.createdAt).toLocaleString()}</Text>
+              <Text style={styles.receiptTitle}>{business?.name || "SALES RECEIPT"}</Text>
+              {business?.address && <Text style={styles.receiptSubtitle}>{business.address}</Text>}
+              {business?.city && <Text style={styles.receiptSubtitle}>{business.city}</Text>}
+              <Text style={[styles.receiptDate, { marginTop: 8 }]}>{new Date(sale.createdAt).toLocaleString()}</Text>
             </View>
 
             <View style={styles.divider} />
 
-            <View style={styles.receiptSection}>
-              <Text style={styles.sectionLabel}>Transaction ID</Text>
-              <Text style={styles.sectionValue}>{sale.id}</Text>
+            <View style={[styles.receiptSection, { flexDirection: 'row', justifyContent: 'space-between' }]}>
+              <View>
+                <Text style={styles.sectionLabel}>Receipt No</Text>
+                <Text style={styles.sectionValue}>{(sale as any).receiptNo || "#" + sale.id.toString()}</Text>
+              </View>
+              <View style={{ alignItems: 'flex-end' }}>
+                <Text style={styles.sectionLabel}>Cashier</Text>
+                <Text style={styles.sectionValue}>{sale.cashierName || "Staff"}</Text>
+              </View>
             </View>
 
             <View style={styles.divider} />
@@ -55,10 +84,10 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({ visible, onClose, sa
                 <View style={styles.itemInfo}>
                   <Text style={styles.itemName}>{item.product.name}</Text>
                   <Text style={styles.itemDetails}>
-                    {item.quantity} x ${item.product.price.toFixed(2)}
+                    {item.quantity} x {formatCurrency(item.product.price, business?.currency)}
                   </Text>
                 </View>
-                <Text style={styles.itemTotal}>${(item.quantity * item.product.price - item.discount).toFixed(2)}</Text>
+                <Text style={styles.itemTotal}>{formatCurrency(item.quantity * item.product.price - item.discount, business?.currency)}</Text>
               </View>
             ))}
 
@@ -66,18 +95,18 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({ visible, onClose, sa
 
             <View style={styles.totalRow}>
               <Text style={styles.totalLabel}>Subtotal</Text>
-              <Text style={styles.totalValue}>${sale.subtotal.toFixed(2)}</Text>
+              <Text style={styles.totalValue}>{formatCurrency(sale.subtotal, business?.currency)}</Text>
             </View>
 
             <View style={styles.totalRow}>
               <Text style={styles.totalLabel}>Tax</Text>
-              <Text style={styles.totalValue}>${sale.tax.toFixed(2)}</Text>
+              <Text style={styles.totalValue}>{formatCurrency(sale.tax, business?.currency)}</Text>
             </View>
 
             {sale.discount > 0 && (
               <View style={styles.totalRow}>
                 <Text style={styles.totalLabel}>Discount</Text>
-                <Text style={[styles.totalValue, { color: Colors.success }]}>-${sale.discount.toFixed(2)}</Text>
+                <Text style={[styles.totalValue, { color: Colors.success }]}>-{formatCurrency(sale.discount, business?.currency)}</Text>
               </View>
             )}
 
@@ -85,7 +114,7 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({ visible, onClose, sa
 
             <View style={styles.totalRow}>
               <Text style={styles.grandTotalLabel}>TOTAL</Text>
-              <Text style={styles.grandTotalValue}>${sale.total.toFixed(2)}</Text>
+              <Text style={styles.grandTotalValue}>{formatCurrency(sale.total, business?.currency)}</Text>
             </View>
 
             <View style={styles.divider} />
@@ -121,8 +150,9 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
+    paddingTop: 48,
     paddingHorizontal: 16,
-    paddingVertical: 12,
+    paddingBottom: 12,
     borderBottomWidth: 1,
     borderBottomColor: Colors.gray200,
   },
@@ -169,7 +199,12 @@ const styles = StyleSheet.create({
     fontWeight: Typography.bold,
     color: Colors.gray900,
     textAlign: "center",
-    marginBottom: 8,
+    marginBottom: 4,
+  },
+  receiptSubtitle: {
+    fontSize: Typography.sm,
+    color: Colors.gray600,
+    textAlign: "center",
   },
   receiptDate: {
     fontSize: Typography.sm,

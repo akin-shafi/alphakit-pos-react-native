@@ -1,163 +1,112 @@
-"use client"
-
-import type React from "react"
-import { createContext, useState, useContext } from "react"
+import React, { createContext, useState, useContext, useEffect } from "react"
 import type { Product, Category } from "../types"
+import { InventoryService } from "../services/InventoryService"
+import { CategoryService } from "../services/CategoryService"
+import { useAuth } from "./AuthContext"
 
 interface InventoryContextType {
   products: Product[]
   categories: Category[]
+  loading: boolean
   searchQuery: string
   selectedCategory: string | null
   setSearchQuery: (query: string) => void
   setSelectedCategory: (categoryId: string | null) => void
   getFilteredProducts: () => Product[]
-  updateProduct: (product: Product) => void
-  addProduct: (product: Product) => void
+  refreshData: () => Promise<void>
+  updateProduct: (productId: string, updates: Partial<Product>) => Promise<void>
+  addProduct: (product: Partial<Product>) => Promise<void>
+  deleteProduct: (productId: string) => Promise<void>
 }
 
 const InventoryContext = createContext<InventoryContextType | undefined>(undefined)
 
-// Mock data for MVP
-const MOCK_CATEGORIES: Category[] = [
-  { id: "1", businessId: "1", name: "All", icon: "apps", color: "#6B7280", sortOrder: 0 },
-  { id: "2", businessId: "1", name: "Beverages", icon: "cafe", color: "#059669", sortOrder: 1 },
-  { id: "3", businessId: "1", name: "Snacks", icon: "fast-food", color: "#DC2626", sortOrder: 2 },
-  { id: "4", businessId: "1", name: "Electronics", icon: "phone-portrait", color: "#2563EB", sortOrder: 3 },
-  { id: "5", businessId: "1", name: "Groceries", icon: "cart", color: "#7C3AED", sortOrder: 4 },
-]
-
-const MOCK_PRODUCTS: Product[] = [
-  {
-    id: "1",
-    businessId: "1",
-    name: "Coca Cola 500ml",
-    sku: "BEV001",
-    category: "Beverages",
-    price: 2.5,
-    cost: 1.5,
-    stock: 150,
-    minStock: 20,
-    isActive: true,
-  },
-  {
-    id: "2",
-    businessId: "1",
-    name: "Pepsi 500ml",
-    sku: "BEV002",
-    category: "Beverages",
-    price: 2.5,
-    cost: 1.5,
-    stock: 120,
-    minStock: 20,
-    isActive: true,
-  },
-  {
-    id: "3",
-    businessId: "1",
-    name: "Lays Chips Original",
-    sku: "SNK001",
-    category: "Snacks",
-    price: 3.99,
-    cost: 2.0,
-    stock: 85,
-    minStock: 15,
-    isActive: true,
-  },
-  {
-    id: "4",
-    businessId: "1",
-    name: "Pringles Sour Cream",
-    sku: "SNK002",
-    category: "Snacks",
-    price: 4.99,
-    cost: 2.5,
-    stock: 60,
-    minStock: 10,
-    isActive: true,
-  },
-  {
-    id: "5",
-    businessId: "1",
-    name: "USB-C Cable",
-    sku: "ELC001",
-    category: "Electronics",
-    price: 12.99,
-    cost: 5.0,
-    stock: 45,
-    minStock: 10,
-    isActive: true,
-  },
-  {
-    id: "6",
-    businessId: "1",
-    name: "Wireless Mouse",
-    sku: "ELC002",
-    category: "Electronics",
-    price: 24.99,
-    cost: 12.0,
-    stock: 30,
-    minStock: 5,
-    isActive: true,
-  },
-  {
-    id: "7",
-    businessId: "1",
-    name: "White Bread",
-    sku: "GRC001",
-    category: "Groceries",
-    price: 2.99,
-    cost: 1.2,
-    stock: 40,
-    minStock: 10,
-    isActive: true,
-  },
-  {
-    id: "8",
-    businessId: "1",
-    name: "Milk 1L",
-    sku: "GRC002",
-    category: "Groceries",
-    price: 3.49,
-    cost: 1.8,
-    stock: 65,
-    minStock: 15,
-    isActive: true,
-  },
-]
-
 export const InventoryProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [products, setProducts] = useState<Product[]>(MOCK_PRODUCTS)
-  const [categories] = useState<Category[]>(MOCK_CATEGORIES)
+  const { business } = useAuth()
+  const [products, setProducts] = useState<Product[]>([])
+  const [categories, setCategories] = useState<Category[]>([])
+  const [loading, setLoading] = useState(false)
   const [searchQuery, setSearchQuery] = useState("")
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null)
+
+  useEffect(() => {
+    if (business) {
+      refreshData()
+    } else {
+      setProducts([])
+      setCategories([])
+    }
+  }, [business?.id])
+
+  const refreshData = async () => {
+    if (!business?.id) return
+    setLoading(true)
+    try {
+      const [p, c] = await Promise.all([
+        InventoryService.getProducts(business.id.toString()),
+        CategoryService.getCategories(),
+      ])
+      setProducts(p)
+      setCategories(c)
+    } catch (e) {
+      console.error("Failed to fetch inventory data", e)
+    } finally {
+      setLoading(false)
+    }
+  }
 
   const getFilteredProducts = () => {
     let filtered = products
 
-    // Filter by category
-    if (selectedCategory && selectedCategory !== "1") {
-      const category = categories.find((c) => c.id === selectedCategory)
-      if (category) {
-        filtered = filtered.filter((p) => p.category === category.name)
+    // Filter by category (using category_id which is a number now)
+    if (selectedCategory && selectedCategory !== "All") {
+      // Find the category by id or name if selectedCategory is ID
+      const cat = categories.find(c => c.id.toString() === selectedCategory || c.name === selectedCategory)
+      if (cat) {
+        filtered = filtered.filter((p) => p.category_id === cat.id)
       }
     }
 
     // Filter by search query
     if (searchQuery) {
       const query = searchQuery.toLowerCase()
-      filtered = filtered.filter((p) => p.name.toLowerCase().includes(query) || p.sku.toLowerCase().includes(query))
+      filtered = filtered.filter((p) => 
+        p.name.toLowerCase().includes(query) || 
+        (p.sku && p.sku.toLowerCase().includes(query))
+      )
     }
 
     return filtered
   }
 
-  const updateProduct = (product: Product) => {
-    setProducts((prev) => prev.map((p) => (p.id === product.id ? product : p)))
+  const updateProduct = async (productId: string, updates: Partial<Product>) => {
+    try {
+      const updated = await InventoryService.updateProduct(productId, updates)
+      setProducts((prev) => prev.map((p) => (p.id.toString() === productId.toString() ? updated : p)))
+    } catch (e) {
+      console.error("Failed to update product", e)
+      throw e
+    }
   }
 
-  const addProduct = (product: Product) => {
-    setProducts((prev) => [...prev, product])
+  const addProduct = async (product: Partial<Product>) => {
+    try {
+      const created = await InventoryService.createProduct(product)
+      setProducts((prev) => [...prev, created])
+    } catch (e) {
+      console.error("Failed to create product", e)
+      throw e
+    }
+  }
+
+  const deleteProduct = async (productId: string) => {
+    try {
+      await InventoryService.deleteProduct(productId)
+      setProducts((prev) => prev.filter((p) => p.id.toString() !== productId.toString()))
+    } catch (e) {
+      console.error("Failed to delete product", e)
+      throw e
+    }
   }
 
   return (
@@ -165,13 +114,16 @@ export const InventoryProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       value={{
         products,
         categories,
+        loading,
         searchQuery,
         selectedCategory,
         setSearchQuery,
         setSelectedCategory,
         getFilteredProducts,
+        refreshData,
         updateProduct,
         addProduct,
+        deleteProduct,
       }}
     >
       {children}

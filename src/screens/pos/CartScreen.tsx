@@ -1,8 +1,6 @@
-"use client"
-
 import type React from "react"
 import { useState } from "react"
-import { View, Text, StyleSheet, FlatList, TouchableOpacity, Alert } from "react-native"
+import { View, Text, StyleSheet, FlatList, TouchableOpacity, Alert, ActivityIndicator } from "react-native"
 import { Ionicons } from "@expo/vector-icons"
 import { useAuth } from "../../contexts/AuthContext"
 import { useCart } from "../../contexts/CartContext"
@@ -12,13 +10,15 @@ import { Button } from "../../components/Button"
 import { Card } from "../../components/Card"
 import { Colors, BusinessThemes } from "../../constants/Colors"
 import { Typography } from "../../constants/Typography"
+import { formatCurrency } from "../../utils/Formatter"
+import { SalesService } from "../../services/SalesService"
 
 export const CartScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
   const { business } = useAuth()
   const { items, updateQuantity, removeItem, getSubtotal, getTax, getTotal, clearCart } = useCart()
   const { config } = usePaymentConfig()
   const [showPaymentSelector, setShowPaymentSelector] = useState(false)
-  const [processingPayment, setProcessingPayment] = useState(false)
+  const [isProcessing, setIsProcessing] = useState(false)
 
   const theme = business ? BusinessThemes[business.type] : BusinessThemes.default
 
@@ -36,14 +36,18 @@ export const CartScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
     setShowPaymentSelector(false)
 
     if (method === "external-terminal") {
-      navigation.navigate("ExternalTerminal", { provider: provider || "moniepoint" })
+      // Add a small delay to ensure the modal is fully dismissed before navigating.
+      // Modals in React Native can sometimes leave lingering overlays if navigation happens too fast.
+      setTimeout(() => {
+        navigation.navigate("ExternalTerminal", { provider: provider || "moniepoint" })
+      }, 300)
     } else {
       handleCheckout(method)
     }
   }
 
   const handleCheckout = (paymentMethod: string) => {
-    Alert.alert("Process Payment", `Process ${paymentMethod} payment of $${getTotal().toFixed(2)}?`, [
+    Alert.alert("Process Payment", `Process ${paymentMethod} payment of ${formatCurrency(getTotal(), business?.currency)}?`, [
       { text: "Cancel", style: "cancel" },
       {
         text: "Confirm",
@@ -53,12 +57,42 @@ export const CartScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
   }
 
   const processPayment = async (paymentMethod: string) => {
-    setProcessingPayment(true)
-    // Simulate payment processing
-    setTimeout(() => {
-      setProcessingPayment(false)
-      navigation.navigate("Checkout", { paymentMethod })
-    }, 1500)
+    try {
+      setIsProcessing(true)
+
+      const payload = {
+        items: items.map((item) => ({
+          product_id: item.product.id,
+          quantity: item.quantity,
+        })),
+        payment_method: paymentMethod.toUpperCase(),
+        amount_paid: getTotal(),
+        discount: items.reduce((sum, item) => sum + item.discount, 0),
+      }
+
+      const receiptData = await SalesService.createSale(payload)
+
+      // Success! Clear cart and navigate
+      clearCart()
+      navigation.navigate("Checkout", {
+        receipt: receiptData.sale,
+        items: (receiptData.items || []).map((item: any) => ({
+          product: {
+            id: item.product_id,
+            name: item.product_name,
+            price: item.unit_price,
+          },
+          quantity: item.quantity,
+          discount: 0,
+        })),
+        paymentMethod,
+      })
+    } catch (error: any) {
+      console.error("Checkout failed:", error)
+      Alert.alert("Checkout Failed", error.response?.data?.error || "Failed to process payment. Please try again.")
+    } finally {
+      setIsProcessing(false)
+    }
   }
 
   if (items.length === 0) {
@@ -96,7 +130,7 @@ export const CartScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
 
       <FlatList
         data={items}
-        keyExtractor={(item) => item.product.id}
+        keyExtractor={(item) => item.product.id.toString()}
         renderItem={({ item }) => (
           <Card style={styles.cartItem}>
             <View style={styles.itemHeader}>
@@ -107,7 +141,7 @@ export const CartScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
             </View>
 
             <View style={styles.itemDetails}>
-              <Text style={styles.itemPrice}>${item.product.price.toFixed(2)}</Text>
+              <Text style={styles.itemPrice}>{formatCurrency(item.product.price, business?.currency)}</Text>
               <View style={styles.quantityControls}>
                 <TouchableOpacity
                   style={styles.quantityButton}
@@ -123,7 +157,7 @@ export const CartScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
                   <Ionicons name="add" size={20} color={Colors.gray700} />
                 </TouchableOpacity>
               </View>
-              <Text style={styles.itemTotal}>${(item.product.price * item.quantity).toFixed(2)}</Text>
+              <Text style={styles.itemTotal}>{formatCurrency(item.product.price * item.quantity, business?.currency)}</Text>
             </View>
           </Card>
         )}
@@ -134,16 +168,16 @@ export const CartScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
         <Card style={styles.totalsCard}>
           <View style={styles.totalRow}>
             <Text style={styles.totalLabel}>Subtotal</Text>
-            <Text style={styles.totalValue}>${getSubtotal().toFixed(2)}</Text>
+            <Text style={styles.totalValue}>{formatCurrency(getSubtotal(), business?.currency)}</Text>
           </View>
           <View style={styles.totalRow}>
-            <Text style={styles.totalLabel}>Tax (10%)</Text>
-            <Text style={styles.totalValue}>${getTax().toFixed(2)}</Text>
+            <Text style={styles.totalLabel}>Tax</Text>
+            <Text style={styles.totalValue}>{formatCurrency(getTax(), business?.currency)}</Text>
           </View>
           <View style={styles.divider} />
           <View style={styles.totalRow}>
             <Text style={styles.grandTotalLabel}>Total</Text>
-            <Text style={[styles.grandTotalValue, { color: theme.primary }]}>${getTotal().toFixed(2)}</Text>
+            <Text style={[styles.grandTotalValue, { color: theme.primary }]}>{formatCurrency(getTotal(), business?.currency)}</Text>
           </View>
         </Card>
 
@@ -152,7 +186,7 @@ export const CartScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
           onPress={handleCheckoutPress}
           fullWidth
           primaryColor={theme.primary}
-          loading={processingPayment}
+          loading={isProcessing}
         />
 
         {config.defaultMode !== "ask-every-time" && (

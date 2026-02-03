@@ -1,20 +1,22 @@
-"use client"
+
 
 import type React from "react"
 import { useState } from "react"
-import { View, Text, StyleSheet, ActivityIndicator } from "react-native"
+import { View, Text, StyleSheet, ActivityIndicator, Alert } from "react-native"
 import { Ionicons } from "@expo/vector-icons"
 import { useAuth } from "../../contexts/AuthContext"
 import { useCart } from "../../contexts/CartContext"
 import { Button } from "../../components/Button"
 import { Colors, BusinessThemes } from "../../constants/Colors"
 import { Typography } from "../../constants/Typography"
+import { formatCurrency } from "../../utils/Formatter"
+import { SalesService } from "../../services/SalesService"
 
 export const ExternalTerminalScreen: React.FC<{ navigation: any; route: any }> = ({ navigation, route }) => {
   const { provider = "moniepoint" } = route.params
   const { business } = useAuth()
-  const { getTotal } = useCart()
-  const [confirmed, setConfirmed] = useState(false)
+  const { items, getTotal, clearCart } = useCart()
+  const [processing, setProcessing] = useState(false)
 
   const theme = business ? BusinessThemes[business.type] : BusinessThemes.default
 
@@ -24,15 +26,44 @@ export const ExternalTerminalScreen: React.FC<{ navigation: any; route: any }> =
     other: "External POS Terminal",
   }
 
-  const handleConfirmPayment = () => {
-    setConfirmed(true)
-    // Navigate to checkout with external terminal payment method
-    setTimeout(() => {
+  const handleConfirmPayment = async () => {
+    try {
+      setProcessing(true)
+
+      const payload = {
+        items: items.map((item) => ({
+          product_id: item.product.id,
+          quantity: item.quantity,
+        })),
+        payment_method: "CARD", // External terminal is card-based
+        amount_paid: getTotal(),
+        discount: items.reduce((sum, item) => sum + item.discount, 0),
+      }
+
+      const receiptData = await SalesService.createSale(payload)
+
+      // Success! Clear cart and navigate
+      clearCart()
       navigation.navigate("Checkout", {
+        receipt: receiptData.sale,
+        items: (receiptData.items || []).map((item: any) => ({
+          product: {
+            id: item.product_id,
+            name: item.product_name,
+            price: item.unit_price,
+          },
+          quantity: item.quantity,
+          discount: 0,
+        })),
         paymentMethod: "external-terminal",
         provider,
       })
-    }, 1000)
+    } catch (error: any) {
+      console.error("Payment failed:", error)
+      Alert.alert("Payment Failed", error.response?.data?.error || "Failed to process payment. Please try again.")
+    } finally {
+      setProcessing(false)
+    }
   }
 
   const handleCancel = () => {
@@ -55,7 +86,7 @@ export const ExternalTerminalScreen: React.FC<{ navigation: any; route: any }> =
 
           <View style={styles.amountContainer}>
             <Text style={styles.amountLabel}>Amount to Charge</Text>
-            <Text style={[styles.amountValue, { color: theme.primary }]}>${getTotal().toFixed(2)}</Text>
+            <Text style={[styles.amountValue, { color: theme.primary }]}>{formatCurrency(getTotal(), business?.currency)}</Text>
           </View>
 
           <View style={styles.divider} />
@@ -88,10 +119,10 @@ export const ExternalTerminalScreen: React.FC<{ navigation: any; route: any }> =
             </View>
           </View>
 
-          {confirmed && (
+          {processing && (
             <View style={styles.confirmingContainer}>
               <ActivityIndicator size="small" color={theme.primary} />
-              <Text style={styles.confirmingText}>Processing...</Text>
+              <Text style={styles.confirmingText}>Processing payment...</Text>
             </View>
           )}
         </View>
@@ -103,10 +134,10 @@ export const ExternalTerminalScreen: React.FC<{ navigation: any; route: any }> =
           onPress={handleConfirmPayment}
           fullWidth
           primaryColor={theme.primary}
-          disabled={confirmed}
-          loading={confirmed}
+          disabled={processing}
+          loading={processing}
         />
-        <Button title="Cancel" onPress={handleCancel} variant="outline" fullWidth disabled={confirmed} />
+        <Button title="Cancel" onPress={handleCancel} variant="outline" fullWidth disabled={processing} />
       </View>
     </View>
   )

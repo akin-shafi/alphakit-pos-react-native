@@ -1,7 +1,7 @@
-"use client"
+
 
 import type React from "react"
-import { useState, useRef } from "react"
+import { useState, useRef, useEffect } from "react"
 import {
   View,
   Text,
@@ -20,17 +20,23 @@ import { useAuth } from "../../contexts/AuthContext"
 import { Colors } from "../../constants/Colors"
 import { Typography } from "../../constants/Typography"
 
-const DEMO_EMAIL = "demo@business.com"
-const DEMO_PASSWORD = "demo1234"
+const DEMO_EMAIL = "sakinropo@gmail.com"
+const DEMO_PASSWORD = "user@123"
 
 export const LoginEmailScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
-  const { login } = useAuth()
+  const { login, lastLoggedUser } = useAuth()
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
-  const [showPassword, setShowPassword] = useState(false)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState("")
+  const [isSmartLogin, setIsSmartLogin] = useState(!!lastLoggedUser)
   const scrollViewRef = useRef<ScrollView>(null)
+
+  useEffect(() => {
+    if (lastLoggedUser && isSmartLogin) {
+      setEmail(lastLoggedUser.email)
+    }
+  }, [lastLoggedUser, isSmartLogin])
 
   const handleLogin = async () => {
     if (!email.trim()) {
@@ -48,7 +54,13 @@ export const LoginEmailScreen: React.FC<{ navigation: any }> = ({ navigation }) 
       await login(email.trim(), password)
       // Navigation happens automatically in AppNavigation based on isAuthenticated
     } catch (err: any) {
-      setError(err?.message || "Login failed. Please check your credentials.")
+      const msg = err?.message || "Login failed"
+      if (msg.toLowerCase().includes("verify") || msg.toLowerCase().includes("verified")) {
+          // If 401 says please verify, we redirect
+          navigation.navigate("OTPVerification", { email: email.trim() })
+          return
+      }
+      setError(msg || "Login failed. Please check your credentials.")
     } finally {
       setLoading(false)
     }
@@ -88,57 +100,71 @@ export const LoginEmailScreen: React.FC<{ navigation: any }> = ({ navigation }) 
             showsVerticalScrollIndicator={false}
           >
             <View style={styles.iconContainer}>
-              <Ionicons name="lock-closed" size={48} color={Colors.white} />
+              <Ionicons name="lock-closed" size={28} color={Colors.white} />
             </View>
 
             <View style={styles.header}>
-              <Text style={styles.title}>Welcome Back</Text>
-              <Text style={styles.subtitle}>Sign in with your email and password</Text>
+              <Text style={styles.title}>{isSmartLogin ? "Welcome Back" : "Sign In"}</Text>
+              <Text style={styles.subtitle}>
+                {isSmartLogin 
+                  ? `Hello ${lastLoggedUser?.name}, please enter your password to continue` 
+                  : "Sign in with your email and password"}
+              </Text>
             </View>
 
             <View style={styles.form}>
-              <View>
-                <Text style={styles.label}>Email</Text>
-                <Input
-                  placeholder="Enter your email"
-                  value={email}
-                  onChangeText={(v) => {
-                    setEmail(v)
-                    setError("")
-                  }}
-                  autoCapitalize="none"
-                  keyboardType="email-address"
-                  onFocus={handleInputFocus}
-                  editable={!loading}
-                />
-              </View>
+              {!isSmartLogin ? (
+                <View>
+                  <Text style={styles.label}>Email</Text>
+                  <Input
+                    placeholder="Enter your email"
+                    value={email}
+                    onChangeText={(v) => {
+                      setEmail(v)
+                      setError("")
+                    }}
+                    autoCapitalize="none"
+                    keyboardType="email-address"
+                    onFocus={handleInputFocus}
+                    editable={!loading}
+                  />
+                </View>
+              ) : (
+                <View style={styles.accountCard}>
+                   <View style={styles.accountInfo}>
+                      <View style={styles.avatar}>
+                        <Text style={styles.avatarText}>{lastLoggedUser?.name.charAt(0)}</Text>
+                      </View>
+                      <View>
+                        <Text style={styles.accountName}>{lastLoggedUser?.name}</Text>
+                        <Text style={styles.accountEmail}>{lastLoggedUser?.email}</Text>
+                      </View>
+                   </View>
+                   <TouchableOpacity onPress={() => setIsSmartLogin(false)}>
+                      <Text style={styles.switchAccount}>Switch Account</Text>
+                   </TouchableOpacity>
+                </View>
+              )}
 
               <View>
                 <Text style={styles.label}>Password</Text>
-                <View style={styles.passwordInputContainer}>
-                  <Input
-                    placeholder="Enter your password"
-                    value={password}
-                    onChangeText={(v) => {
-                      setPassword(v)
-                      setError("")
-                    }}
-                    secureTextEntry={!showPassword}
-                    onFocus={handleInputFocus}
-                    editable={!loading}
-                    style={{ flex: 1 }}
-                  />
-                  <TouchableOpacity
-                    style={styles.passwordToggle}
-                    onPress={() => setShowPassword(!showPassword)}
-                  >
-                    <Ionicons
-                      name={showPassword ? "eye-off" : "eye"}
-                      size={20}
-                      color={Colors.gray600}
-                    />
-                  </TouchableOpacity>
-                </View>
+                <Input
+                  placeholder="Enter your password"
+                  value={password}
+                  onChangeText={(v) => {
+                    setPassword(v)
+                    setError("")
+                  }}
+                  secureTextEntry
+                  onFocus={handleInputFocus}
+                  editable={!loading}
+                />
+                <TouchableOpacity 
+                   style={styles.forgotPassword} 
+                   onPress={() => navigation.navigate("ForgotPassword")}
+                >
+                  <Text style={styles.forgotPasswordText}>Forgot Password?</Text>
+                </TouchableOpacity>
               </View>
 
               {error && <Text style={styles.errorMessage}>{error}</Text>}
@@ -182,13 +208,13 @@ export const LoginEmailScreen: React.FC<{ navigation: any }> = ({ navigation }) 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: Colors.white },
   innerContainer: { flex: 1 },
-  topBar: { paddingTop: 48, paddingHorizontal: 20, paddingBottom: 12 },
+  topBar: { paddingTop: 48, paddingHorizontal: 20, paddingBottom: 2 },
   backButton: { padding: 4, width: 40 },
   scrollView: { flex: 1 },
   scrollContent: { padding: 20, paddingTop: 40 },
   iconContainer: {
-    width: 100,
-    height: 100,
+    width: 60,
+    height: 60,
     borderRadius: 50,
     backgroundColor: Colors.teal,
     alignItems: "center",
@@ -201,15 +227,14 @@ const styles = StyleSheet.create({
   subtitle: { fontSize: Typography.base, color: Colors.gray600, lineHeight: 24 },
   form: { gap: 24 },
   label: { fontSize: Typography.base, color: Colors.gray700, marginBottom: 8 },
-  passwordInputContainer: {
-    flexDirection: "row",
-    alignItems: "center",
-    position: "relative",
+  forgotPassword: {
+    alignSelf: "flex-end",
+    marginTop: 8,
   },
-  passwordToggle: {
-    position: "absolute",
-    right: 12,
-    padding: 8,
+  forgotPasswordText: {
+    color: Colors.teal,
+    fontWeight: "600",
+    fontSize: Typography.sm,
   },
   errorMessage: {
     fontSize: Typography.sm,
@@ -241,4 +266,46 @@ const styles = StyleSheet.create({
   demoHint: { fontSize: Typography.xs, color: Colors.gray500, fontStyle: "italic" },
   createAccount: { flexDirection: "row", alignItems: "flex-start", gap: 8, paddingTop: 8 },
   createAccountText: { flex: 1, fontSize: Typography.sm, color: Colors.gray600, lineHeight: 20 },
+  accountCard: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    backgroundColor: Colors.gray50,
+    padding: 16,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: Colors.gray200,
+  },
+  accountInfo: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+  },
+  avatar: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: Colors.teal,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  avatarText: {
+    color: Colors.white,
+    fontWeight: "bold",
+    fontSize: Typography.lg,
+  },
+  accountName: {
+    fontSize: Typography.base,
+    fontWeight: "600",
+    color: Colors.gray900,
+  },
+  accountEmail: {
+    fontSize: Typography.xs,
+    color: Colors.gray500,
+  },
+  switchAccount: {
+    fontSize: Typography.xs,
+    color: Colors.teal,
+    fontWeight: "600",
+  },
 })

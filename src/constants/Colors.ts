@@ -3,6 +3,8 @@ export const Colors = {
   // Base neutrals
   white: "#FFFFFF",
   black: "#0A0A0A",
+  orange: "#FF9800",
+  orange50: "#FFF7ED",
   // red: "#EF4444",
   gray50: "#F9FAFB",
   gray100: "#F3F4F6",
@@ -26,6 +28,7 @@ export const Colors = {
   success: "#10B981",
   warning: "#F59E0B",
   error: "#EF4444",
+  primary: "#0D5963",
   info: "#3B82F6",
   purple: "#9C27B0", // Added purple for tax metric
 
@@ -45,33 +48,43 @@ export const Colors = {
   productBlue: "#3B82F6",
   productPurple: "#9C27B0",
   productOrange: "#FF9800",
+
+  // Theme support colors
+  blue: "#3B82F6",
+  blueDark: "#1E40AF",
+  green: "#10B981",
+  greenDark: "#065F46",
+
+  indigo: "#6366F1",
+  indigoDark: "#3730A3",
+  indigo50: "#EEF2FF",
 }
 
 // Business type themes - updated to use teal as primary
-export const BusinessThemes = {
+export const BusinessThemes: Record<string, any> = {
   retail: {
-    primary: "#0D5963",
-    primaryDark: "#0A4750",
-    primaryLight: "#E6F4F5",
+    primary: Colors.blue,
+    primaryDark: Colors.blueDark,
+    primaryLight: Colors.blue50,
   },
   restaurant: {
-    primary: "#0D5963",
-    primaryDark: "#0A4750",
-    primaryLight: "#E6F4F5",
+    primary: Colors.orange,
+    primaryDark: "#C2410C",
+    primaryLight: Colors.orange50,
   },
   pharmacy: {
-    primary: "#0D5963",
-    primaryDark: "#0A4750",
-    primaryLight: "#E6F4F5",
+    primary: Colors.teal,
+    primaryDark: Colors.tealDark,
+    primaryLight: Colors.teal50,
   },
   grocery: {
-    primary: "#0D5963",
-    primaryDark: "#0A4750",
-    primaryLight: "#E6F4F5",
+    primary: Colors.green,
+    primaryDark: Colors.greenDark,
+    primaryLight: Colors.green50,
   },
   default: {
-    primary: "#0D5963",
-    primaryDark: "#0A4750",
-    primaryLight: "#E6F4F5",
+    primary: Colors.teal,
+    primaryDark: Colors.tealDark,
+    primaryLight: Colors.teal50,
   },
 }

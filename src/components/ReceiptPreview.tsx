@@ -3,6 +3,7 @@ import { View, Text, StyleSheet, ScrollView } from "react-native"
 import type { CartItem, Business, User } from "../types"
 import { Colors } from "../constants/Colors"
 import { Typography } from "../constants/Typography"
+import { formatCurrency } from "../utils/Formatter"
 
 interface ReceiptPreviewProps {
   business: Business
@@ -11,19 +12,21 @@ interface ReceiptPreviewProps {
   subtotal: number
   tax: number
   total: number
+  saleDate?: string
+  id?: string | number
 }
 
-export const ReceiptPreview: React.FC<ReceiptPreviewProps> = ({ business, user, items, subtotal, tax, total }) => {
+export const ReceiptPreview: React.FC<ReceiptPreviewProps> = ({ business, user, items, subtotal, tax, total, saleDate, id }) => {
   return (
     <ScrollView style={styles.container}>
       <View style={styles.receipt}>
         <View style={styles.header}>
           <Text style={styles.businessName}>{business.name}</Text>
           <Text style={styles.businessInfo}>{business.address}</Text>
-          <Text style={styles.businessInfo}>{business.phone}</Text>
           <Text style={styles.divider}>--------------------------------</Text>
-          <Text style={styles.dateTime}>{new Date().toLocaleString()}</Text>
-          <Text style={styles.cashier}>Cashier: {user.name}</Text>
+          <Text style={styles.dateTime}>{saleDate ? new Date(saleDate).toLocaleString() : new Date().toLocaleString()}</Text>
+          <Text style={styles.cashier}>Cashier: {user.first_name} {user.last_name}</Text>
+          {id && <Text style={styles.cashier}>Receipt #: {id}</Text>}
           <Text style={styles.divider}>--------------------------------</Text>
         </View>
 
@@ -31,14 +34,14 @@ export const ReceiptPreview: React.FC<ReceiptPreviewProps> = ({ business, user, 
           {items.map((item, index) => (
             <View key={index} style={styles.item}>
               <View style={styles.itemHeader}>
-                <Text style={styles.itemName}>{item.product.name}</Text>
-                <Text style={styles.itemPrice}>${(item.product.price * item.quantity).toFixed(2)}</Text>
+                <Text style={styles.itemName}>{item.product?.name || "Unknown Product"}</Text>
+                <Text style={styles.itemPrice}>{formatCurrency((item.product?.price || 0) * item.quantity, business.currency)}</Text>
               </View>
               <View style={styles.itemDetails}>
                 <Text style={styles.itemDetail}>
-                  {item.quantity} x ${item.product.price.toFixed(2)}
+                  {item.quantity} x {formatCurrency(item.product?.price || 0, business.currency)}
                 </Text>
-                {item.discount > 0 && <Text style={styles.itemDiscount}>-${item.discount.toFixed(2)}</Text>}
+                {item.discount > 0 && <Text style={styles.itemDiscount}>-{formatCurrency(item.discount, business.currency)}</Text>}
               </View>
             </View>
           ))}
@@ -49,16 +52,16 @@ export const ReceiptPreview: React.FC<ReceiptPreviewProps> = ({ business, user, 
         <View style={styles.totals}>
           <View style={styles.totalRow}>
             <Text style={styles.totalLabel}>Subtotal:</Text>
-            <Text style={styles.totalValue}>${subtotal.toFixed(2)}</Text>
+            <Text style={styles.totalValue}>{formatCurrency(subtotal, business.currency)}</Text>
           </View>
           <View style={styles.totalRow}>
-            <Text style={styles.totalLabel}>Tax (10%):</Text>
-            <Text style={styles.totalValue}>${tax.toFixed(2)}</Text>
+            <Text style={styles.totalLabel}>Tax:</Text>
+            <Text style={styles.totalValue}>{formatCurrency(tax, business.currency)}</Text>
           </View>
           <Text style={styles.divider}>--------------------------------</Text>
           <View style={styles.totalRow}>
             <Text style={styles.grandTotalLabel}>TOTAL:</Text>
-            <Text style={styles.grandTotalValue}>${total.toFixed(2)}</Text>
+            <Text style={styles.grandTotalValue}>{formatCurrency(total, business.currency)}</Text>
           </View>
         </View>
 

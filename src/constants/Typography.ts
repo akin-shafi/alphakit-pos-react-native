@@ -1,5 +1,7 @@
 // Typography system optimized for touch terminals
-export const Typography = {
+// Using Object.freeze to ensure immutability and help with bundler optimization
+
+const TypographyValues = Object.freeze({
   // Font sizes - larger for touch terminals
   xs: 12,
   sm: 14,
@@ -21,4 +23,10 @@ export const Typography = {
   tight: 1.25,
   normal: 1.5,
   relaxed: 1.75,
-}
+})
+
+// Named export
+export const Typography = TypographyValues
+
+// Default export for alternative import patterns
+export default TypographyValues

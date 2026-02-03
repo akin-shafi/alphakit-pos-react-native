@@ -5,7 +5,9 @@ import { AuthProvider } from "./src/contexts/AuthContext"
 import { CartProvider } from "./src/contexts/CartContext"
 import { InventoryProvider } from "./src/contexts/InventoryContext"
 import { PaymentConfigProvider } from "./src/contexts/PaymentConfigContext"
+import { SubscriptionProvider } from "./src/contexts/SubscriptionContext"
 import { AppNavigation } from "./src/navigation/AppNavigation"
+import { SessionMonitor } from "./src/components/SessionMonitor"
 
 export default function App() {
   return (
@@ -14,9 +16,13 @@ export default function App() {
         <PaymentConfigProvider>
           <CartProvider>
             <InventoryProvider>
-              <NavigationContainer>
-                <AppNavigation />
-              </NavigationContainer>
+              <SubscriptionProvider>
+                <SessionMonitor>
+                  <NavigationContainer>
+                    <AppNavigation />
+                  </NavigationContainer>
+                </SessionMonitor>
+              </SubscriptionProvider>
               <StatusBar style="auto" />
             </InventoryProvider>
           </CartProvider>

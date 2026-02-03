@@ -1,4 +1,4 @@
-"use client"
+
 
 import type React from "react"
 import { useEffect } from "react"
@@ -13,9 +13,10 @@ export const SplashScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
 
   useEffect(() => {
     setTimeout(() => {
-      if (isAuthenticated) {
-        navigation.replace("POSHome")
-      } else {
+      // If authenticated, AppNavigation will automatically switch to POS stack.
+      // We don't need to manually navigate here if AppNavigation renders POS stack.
+      // But if we want to ensure we're on POSHome:
+      if (!isAuthenticated) {
         navigation.replace("Welcome")
       }
     }, 2000)

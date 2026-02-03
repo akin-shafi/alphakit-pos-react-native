@@ -1,6 +1,13 @@
 // Value formatting utilities
-export const formatCurrency = (amount: number): string => {
-  return `$${amount.toFixed(2)}`
+export const formatCurrency = (amount: number, currencyCode: string = "NGN"): string => {
+  const symbols: Record<string, string> = {
+    NGN: "₦",
+    USD: "$",
+    GBP: "£",
+    EUR: "€",
+  }
+  const symbol = symbols[currencyCode] || symbols.NGN
+  return `${symbol}${amount.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
 }
 
 export const formatNumber = (num: number): string => {

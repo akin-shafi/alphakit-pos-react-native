@@ -1,8 +1,8 @@
-"use client"
+
 
 import type React from "react"
-import { useState } from "react"
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from "react-native"
+import { useState, useEffect } from "react"
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator, RefreshControl } from "react-native"
 import { Ionicons } from "@expo/vector-icons"
 import { useAuth } from "../../contexts/AuthContext"
 import { RolePermissions } from "../../constants/Roles"
@@ -10,71 +10,78 @@ import type { Sale } from "../../types"
 import { ReceiptModal } from "../../components/ReceiptModal"
 import { Colors, BusinessThemes } from "../../constants/Colors"
 import { Typography } from "../../constants/Typography"
+import { ReportService, type DailyReport, type SalesReport } from "../../services/ReportService"
+import { formatCurrency } from "../../utils/Formatter"
 
 export const ReportsScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
   const { business, user } = useAuth()
   const [selectedPeriod, setSelectedPeriod] = useState<"today" | "week" | "month">("today")
   const [selectedTransaction, setSelectedTransaction] = useState<Sale | null>(null)
   const [receiptModalVisible, setReceiptModalVisible] = useState(false)
+  const [loading, setLoading] = useState(true)
+  const [refreshing, setRefreshing] = useState(false)
+  const [selectedFilter, setSelectedFilter] = useState<"all" | "cash" | "card" | "transfer">("all")
+  
+  const [reportData, setReportData] = useState<DailyReport | SalesReport | null>(null)
+  const [transactions, setTransactions] = useState<Sale[]>([])
 
   const theme = business ? BusinessThemes[business.type] : BusinessThemes.default
-  const canView = user ? RolePermissions[user.role].canViewReports : false
+  
+  const roleKey = (user?.role?.toLowerCase() || "") as any
+  const canView = RolePermissions[roleKey as keyof typeof RolePermissions]?.canViewReports || false
 
-  // Mock data
-  const salesData = {
-    today: { sales: 45, revenue: 1250.75, items: 132 },
-    week: { sales: 312, revenue: 8945.5, items: 876 },
-    month: { sales: 1245, revenue: 35678.25, items: 3421 },
+  useEffect(() => {
+    if (canView) {
+      fetchData()
+    }
+  }, [selectedPeriod])
+
+  const fetchData = async () => {
+    setLoading(true)
+    try {
+      let startDateStr = ""
+      let endDateStr = ""
+
+      if (selectedPeriod === "today") {
+        startDateStr = new Date().toISOString().split("T")[0]
+        endDateStr = startDateStr
+        // Update metrics
+        const data = await ReportService.getDailyReport()
+        setReportData(data)
+      } else {
+        const now = new Date()
+        let start = new Date()
+        if (selectedPeriod === "week") {
+          start.setDate(now.getDate() - 7)
+        } else {
+          start.setMonth(now.getMonth() - 1)
+        }
+        startDateStr = start.toISOString().split("T")[0]
+        endDateStr = now.toISOString().split("T")[0]
+        
+        const data = await ReportService.getSalesReport(startDateStr, endDateStr)
+        setReportData(data)
+      }
+
+      // Fetch transactions for the list
+      const sales = await ReportService.getSales({
+        from: startDateStr,
+        to: endDateStr
+      })
+      setTransactions(sales)
+
+    } catch (e) {
+      console.error("Failed to fetch report data", e)
+    } finally {
+      setLoading(false)
+      setRefreshing(false)
+    }
   }
 
-  const mockTransactions: Sale[] = [
-    {
-      id: "TXN001",
-      businessId: "1",
-      branchId: "1",
-      userId: "1",
-      items: [
-        {
-          product: { id: "1", name: "Coca Cola 500ml", price: 2.5, category: "Beverages" } as any,
-          quantity: 2,
-          discount: 0,
-        },
-        { product: { id: "2", name: "Chips BBQ", price: 3.0, category: "Snacks" } as any, quantity: 1, discount: 0 },
-      ],
-      subtotal: 8.0,
-      tax: 0.8,
-      discount: 0,
-      total: 8.8,
-      paymentMethod: "cash",
-      status: "completed",
-      createdAt: new Date(),
-      syncStatus: "synced",
-    },
-    {
-      id: "TXN002",
-      businessId: "1",
-      branchId: "1",
-      userId: "1",
-      items: [
-        { product: { id: "3", name: "Bread White", price: 2.5, category: "Bakery" } as any, quantity: 1, discount: 0 },
-      ],
-      subtotal: 2.5,
-      tax: 0.25,
-      discount: 0,
-      total: 2.75,
-      paymentMethod: "card",
-      status: "completed",
-      createdAt: new Date(Date.now() - 3600000),
-      syncStatus: "synced",
-    },
-  ]
-
-  const transactions = selectedPeriod === "today" ? mockTransactions : []
-
-  const totalSales = transactions.reduce((sum, t) => sum + t.total, 0)
-  const avgSale = transactions.length > 0 ? totalSales / transactions.length : 0
-  const totalTax = transactions.reduce((sum, t) => sum + t.tax, 0)
-  const totalDiscount = transactions.reduce((sum, t) => sum + t.discount, 0)
+  const onRefresh = () => {
+    setRefreshing(true)
+    fetchData()
+  }
 
   const handleTransactionPress = (transaction: Sale) => {
     setSelectedTransaction(transaction)
@@ -84,6 +91,12 @@ export const ReportsScreen: React.FC<{ navigation: any }> = ({ navigation }) => 
   const handleGenerateReport = () => {
     navigation.navigate("DetailedReport")
   }
+
+  // Filter transactions
+  const filteredTransactions = transactions.filter(t => {
+    if (selectedFilter === "all") return true
+    return t.paymentMethod?.toLowerCase() === selectedFilter
+  })
 
   if (!canView) {
     return (
@@ -109,8 +122,16 @@ export const ReportsScreen: React.FC<{ navigation: any }> = ({ navigation }) => 
     <View style={styles.container}>
       {/* Header */}
       <View style={styles.topHeader}>
-        <View style={styles.headerTop}>
-          <Text style={styles.businessName}>{business?.name || "Demo Store"}</Text>
+        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+          <View style={styles.headerTop}>
+            <Text style={styles.businessName}>{business?.name || "Demo Store"}</Text>
+          </View>
+          <TouchableOpacity 
+            style={{ padding: 8, backgroundColor: Colors.white, borderRadius: 8, borderWidth: 1, borderColor: Colors.gray200 }} 
+            onPress={() => navigation.navigate("Dashboard")}
+          >
+            <Ionicons name="apps" size={24} color={Colors.teal} />
+          </TouchableOpacity>
         </View>
         <Text style={styles.headerSubtitle}>Daily sales overview</Text>
       </View>
@@ -138,76 +159,118 @@ export const ReportsScreen: React.FC<{ navigation: any }> = ({ navigation }) => 
         </TouchableOpacity>
       </View>
 
-      <ScrollView contentContainerStyle={styles.content}>
-        <View style={styles.metricsGrid}>
-          <View style={styles.metricCard}>
-            <View style={[styles.metricIcon, { backgroundColor: Colors.green50 }]}>
-              <Ionicons name="trending-up" size={24} color={Colors.success} />
-            </View>
-            <Text style={styles.metricLabel}>Total Sales</Text>
-            <Text style={styles.metricValue}>${totalSales.toFixed(2)}</Text>
-            <Text style={styles.metricSubtext}>{transactions.length} transactions</Text>
+      <ScrollView 
+        contentContainerStyle={styles.content}
+        refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[Colors.teal]} />
+        }
+      >
+        {loading && !refreshing ? (
+          <View style={styles.loadingContainer}>
+            <ActivityIndicator size="large" color={Colors.teal} />
+            <Text style={styles.loadingText}>Loading report data...</Text>
           </View>
+        ) : (
+          <>
+            <View style={styles.metricsGrid}>
+              <TouchableOpacity 
+                style={[styles.metricCard, selectedFilter === "all" && { borderColor: theme.primary, borderWidth: 2 }]}
+                onPress={() => setSelectedFilter("all")}
+              >
+                <View style={[styles.metricIcon, { backgroundColor: Colors.green50 }]}>
+                  <Ionicons name="trending-up" size={24} color={Colors.success} />
+                </View>
+                <Text style={styles.metricLabel}>Total Sales</Text>
+                <Text style={styles.metricValue}>{formatCurrency(reportData?.total_sales || 0, business?.currency)}</Text>
+                <Text style={styles.metricSubtext}>{(reportData?.total_transactions || 0)} transactions</Text>
+              </TouchableOpacity>
 
-          <View style={styles.metricCard}>
-            <View style={[styles.metricIcon, { backgroundColor: Colors.blue50 }]}>
-              <Ionicons name="wallet" size={24} color={Colors.info} />
+              <TouchableOpacity 
+                style={[styles.metricCard, selectedFilter === "all" && { borderColor: theme.primary, borderWidth: 2, opacity: 0.7 }]}
+                 // Just average, clicking it resets to all? Or maybe does nothing. Let's make it reset to all.
+                onPress={() => setSelectedFilter("all")}
+              >
+                <View style={[styles.metricIcon, { backgroundColor: Colors.blue50 }]}>
+                  <Ionicons name="wallet" size={24} color={Colors.info} />
+                </View>
+                <Text style={styles.metricLabel}>Avg. Sale</Text>
+                <Text style={styles.metricValue}>{formatCurrency(reportData?.average_sale || 0, business?.currency)}</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity 
+                style={[styles.metricCard, selectedFilter === "cash" && { borderColor: theme.primary, borderWidth: 2 }]}
+                onPress={() => setSelectedFilter("cash")}
+              >
+                <View style={[styles.metricIcon, { backgroundColor: Colors.purple50 }]}>
+                  <Ionicons name="cash" size={24} color={Colors.purple} />
+                </View>
+                <Text style={styles.metricLabel}>Cash Sales</Text>
+                <Text style={styles.metricValue}>{formatCurrency(reportData?.cash_sales || 0, business?.currency)}</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity 
+                style={[styles.metricCard, selectedFilter === "card" && { borderColor: theme.primary, borderWidth: 2 }]}
+                onPress={() => setSelectedFilter("card")}
+              >
+                <View style={[styles.metricIcon, { backgroundColor: Colors.orange50 }]}>
+                  <Ionicons name="card" size={24} color={Colors.orange} />
+                </View>
+                <Text style={styles.metricLabel}>Card Sales</Text>
+                <Text style={styles.metricValue}>{formatCurrency(reportData?.card_sales || 0, business?.currency)}</Text>
+              </TouchableOpacity>
             </View>
-            <Text style={styles.metricLabel}>Avg. Sale</Text>
-            <Text style={styles.metricValue}>${avgSale.toFixed(2)}</Text>
-          </View>
 
-          <View style={styles.metricCard}>
-            <View style={[styles.metricIcon, { backgroundColor: Colors.purple50 }]}>
-              <Ionicons name="pricetag" size={24} color={Colors.purple} />
-            </View>
-            <Text style={styles.metricLabel}>Tax</Text>
-            <Text style={styles.metricValue}>${totalTax.toFixed(2)}</Text>
-          </View>
+            <View style={styles.transactionsCard}>
+              <TouchableOpacity style={styles.generateButton} onPress={handleGenerateReport}>
+                <Ionicons name="document-text" size={20} color={Colors.white} />
+                <Text style={styles.generateButtonText}>Generate Detailed PDF</Text>
+              </TouchableOpacity>
 
-          <View style={styles.metricCard}>
-            <View style={[styles.metricIcon, { backgroundColor: Colors.red50 }]}>
-              <Ionicons name="gift" size={24} color={Colors.error} />
-            </View>
-            <Text style={styles.metricLabel}>Discounts</Text>
-            <Text style={styles.metricValue}>${totalDiscount.toFixed(2)}</Text>
-          </View>
-        </View>
-
-        <View style={styles.transactionsCard}>
-          <TouchableOpacity style={styles.generateButton} onPress={handleGenerateReport}>
-            <Ionicons name="document-text" size={20} color={Colors.white} />
-            <Text style={styles.generateButtonText}>Generate Report</Text>
-          </TouchableOpacity>
-
-          <Text style={styles.transactionsTitle}>Recent Transactions</Text>
-
-          {transactions.length === 0 ? (
-            <View style={styles.emptyState}>
-              <Ionicons name="receipt-outline" size={48} color={Colors.gray300} />
-              <Text style={styles.emptyText}>No transactions today</Text>
-            </View>
-          ) : (
-            <View style={styles.transactionsList}>
-              {transactions.map((transaction) => (
-                <TouchableOpacity
-                  key={transaction.id}
-                  style={styles.transactionRow}
-                  onPress={() => handleTransactionPress(transaction)}
-                >
-                  <View style={styles.transactionLeft}>
-                    <Text style={styles.transactionId}>{transaction.id}</Text>
-                    <Text style={styles.transactionTime}>{new Date(transaction.createdAt).toLocaleTimeString()}</Text>
+              <Text style={styles.transactionsTitle}>Summary</Text>
+              
+              <View style={styles.summaryTable}>
+                 {/* Keep existing summary rows if needed, or replace with logic. Keeping transfer sales as a summary value. */}
+                <View style={styles.summaryRow}>
+                  <Text style={styles.summaryLabel}>Transfer Sales</Text>
+                  <Text style={styles.summaryValue}>{formatCurrency(reportData?.transfer_sales || 0, business?.currency)}</Text>
+                </View>
+                 {"mobile_money_sales" in (reportData || {}) && (
+                  <View style={styles.summaryRow}>
+                    <Text style={styles.summaryLabel}>Mobile Money</Text>
+                    <Text style={styles.summaryValue}>{formatCurrency((reportData as SalesReport)?.mobile_money_sales || 0, business?.currency)}</Text>
                   </View>
-                  <View style={styles.transactionRight}>
-                    <Text style={styles.transactionAmount}>${transaction.total.toFixed(2)}</Text>
-                    <Ionicons name="chevron-forward" size={20} color={Colors.gray400} />
+                )}
+              </View>
+              
+              <Text style={[styles.transactionsTitle, { marginTop: 24 }]}>Recent Transactions ({filteredTransactions.length})</Text>
+
+              <View style={styles.transactionsList}>
+                {filteredTransactions.length === 0 ? (
+                  <View style={styles.emptyState}>
+                     <Text style={styles.emptyText}>No transactions found for this period.</Text>
                   </View>
-                </TouchableOpacity>
-              ))}
+                ) : (
+                  filteredTransactions.map((sale) => (
+                    <TouchableOpacity 
+                      key={sale.id} 
+                      style={styles.transactionRow} 
+                      onPress={() => handleTransactionPress(sale)}
+                    >
+                      <View style={styles.transactionLeft}>
+                         <Text style={styles.transactionId}>#{sale.id.toString().slice(-6)}</Text>
+                         <Text style={styles.transactionTime}>{new Date(sale.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} • {sale.paymentMethod.toUpperCase()}</Text>
+                      </View>
+                      <View style={styles.transactionRight}>
+                         <Text style={styles.transactionAmount}>{formatCurrency(sale.total, business?.currency)}</Text>
+                         <Ionicons name="chevron-forward" size={16} color={Colors.gray400} />
+                      </View>
+                    </TouchableOpacity>
+                  ))
+                )}
+              </View>
             </View>
-          )}
-        </View>
+          </>
+        )}
       </ScrollView>
 
       <ReceiptModal
@@ -426,5 +489,35 @@ const styles = StyleSheet.create({
     fontSize: Typography.base,
     fontWeight: Typography.semibold,
     color: Colors.white,
+  },
+  loadingContainer: {
+    padding: 40,
+    alignItems: "center",
+  },
+  loadingText: {
+    marginTop: 12,
+    color: Colors.gray500,
+    fontSize: Typography.sm,
+  },
+  summaryTable: {
+    marginTop: 8,
+    gap: 12,
+  },
+  summaryRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    paddingVertical: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.gray50,
+  },
+  summaryLabel: {
+    fontSize: Typography.base,
+    color: Colors.gray600,
+  },
+  summaryValue: {
+    fontSize: Typography.base,
+    fontWeight: Typography.bold,
+    color: Colors.gray900,
   },
 })

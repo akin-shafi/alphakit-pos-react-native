@@ -1,7 +1,8 @@
-"use client"
 
-import { useState, useMemo, useRef } from "react"
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert, Dimensions, SafeAreaView } from "react-native"
+
+import { useState, useMemo, useRef, useEffect } from "react"
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert, Dimensions, ActivityIndicator } from "react-native"
+import { SafeAreaView } from "react-native-safe-area-context"
 import { Ionicons, Feather } from "@expo/vector-icons"
 import { useNavigation } from "@react-navigation/native"
 import * as Print from "expo-print"
@@ -12,6 +13,8 @@ import type { Sale } from "../../types"
 import PagerView from "react-native-pager-view"
 import { SummaryCard } from "@/components/reports/SummaryCard"
 import { DateRangeModal } from "@/components/reports/DateRangeModal"
+import { ReportService, type SalesReport } from "../../services/ReportService"
+import { formatCurrency } from "../../utils/Formatter"
 
 const { width, height } = Dimensions.get("window")
 
@@ -21,124 +24,65 @@ export default function DetailedReportScreen() {
   const [startDate, setStartDate] = useState(new Date(Date.now() - 7 * 24 * 60 * 60 * 1000))
   const [endDate, setEndDate] = useState(new Date())
   const [isGenerating, setIsGenerating] = useState(false)
+  const [loading, setLoading] = useState(true)
   const [currentPage, setCurrentPage] = useState(0)
   const [showDatePicker, setShowDatePicker] = useState(false)
   const pagerRef = useRef<PagerView>(null)
   const ITEMS_PER_PAGE = 10
 
-  const mockTransactions: Sale[] = [
-    {
-      id: "TXN001",
-      businessId: "1",
-      branchId: "1",
-      userId: "1",
-      items: [
-        {
-          product: { id: "1", name: "Coca Cola 500ml", price: 2.5, category: "Beverages" } as any,
-          quantity: 2,
-          discount: 0,
-        },
-        { product: { id: "2", name: "Chips BBQ", price: 3.0, category: "Snacks" } as any, quantity: 1, discount: 0 },
-      ],
-      subtotal: 8.0,
-      tax: 0.8,
-      discount: 0,
-      total: 8.8,
-      paymentMethod: "cash" as const,
-      status: "completed" as const,
-      createdAt: new Date(),
-      syncStatus: "synced" as const,
-    },
-    {
-      id: "TXN002",
-      businessId: "1",
-      branchId: "1",
-      userId: "1",
-      items: [
-        { product: { id: "3", name: "Bread White", price: 2.5, category: "Bakery" } as any, quantity: 1, discount: 0 },
-      ],
-      subtotal: 2.5,
-      tax: 0.25,
-      discount: 0,
-      total: 2.75,
-      paymentMethod: "card" as const,
-      status: "completed" as const,
-      createdAt: new Date(Date.now() - 3600000),
-      syncStatus: "synced" as const,
-    },
-    {
-      id: "TXN003",
-      businessId: "1",
-      branchId: "1",
-      userId: "1",
-      items: [
-        {
-          product: { id: "4", name: "Cookies Chocolate", price: 4.5, category: "Snacks" } as any,
-          quantity: 3,
-          discount: 0,
-        },
-      ],
-      subtotal: 13.5,
-      tax: 1.35,
-      discount: 0,
-      total: 14.85,
-      paymentMethod: "cash" as const,
-      status: "completed" as const,
-      createdAt: new Date(Date.now() - 7200000),
-      syncStatus: "synced" as const,
-    },
-    ...Array.from({ length: 27 }, (_, i) => ({
-      id: `TXN${String(i + 4).padStart(3, "0")}`,
-      businessId: "1",
-      branchId: "1",
-      userId: "1",
-      items: [
-        {
-          product: { id: String(i), name: `Product ${i}`, price: 5.0, category: "General" } as any,
-          quantity: 1,
-          discount: 0,
-        },
-      ],
-      subtotal: 5.0,
-      tax: 0.5,
-      discount: 0,
-      total: 5.5,
-      paymentMethod: (i % 2 === 0 ? "cash" : "card") as "cash" | "card",
-      status: "completed" as const,
-      createdAt: new Date(Date.now() - i * 3600000),
-      syncStatus: "synced" as const,
-    })),
-  ]
+  const [transactions, setTransactions] = useState<Sale[]>([])
+  const [reportSummary, setReportSummary] = useState<SalesReport | null>(null)
+
+  useEffect(() => {
+    fetchData()
+  }, [startDate, endDate])
+
+  const fetchData = async () => {
+    setLoading(true)
+    try {
+      const startStr = startDate.toISOString().split("T")[0]
+      const endStr = endDate.toISOString().split("T")[0]
+      
+      const [summary, txns] = await Promise.all([
+        ReportService.getSalesReport(startStr, endStr),
+        ReportService.getSales({ from: startStr, to: endStr, status: "COMPLETED" })
+      ])
+      
+      setReportSummary(summary)
+      setTransactions(txns)
+    } catch (e) {
+      console.error("Failed to fetch detailed report data", e)
+      Alert.alert("Error", "Failed to load report data")
+    } finally {
+      setLoading(false)
+    }
+  }
 
   const summary = useMemo(() => {
-    const totalSales = mockTransactions.reduce((sum, txn) => sum + txn.total, 0)
-    const totalTax = mockTransactions.reduce((sum, txn) => sum + txn.tax, 0)
-    const totalDiscount = mockTransactions.reduce((sum, txn) => sum + txn.discount, 0)
-    const transactionCount = mockTransactions.length
-
     return {
-      totalSales,
-      totalTax,
-      totalDiscount,
-      transactionCount,
-      averageSale: transactionCount > 0 ? totalSales / transactionCount : 0,
+      totalSales: reportSummary?.total_sales || 0,
+      totalTax: transactions.reduce((sum, txn) => sum + (txn.tax || 0), 0),
+      totalDiscount: reportSummary?.total_sales ? transactions.reduce((sum, txn) => sum + (txn.discount || 0), 0) : 0,
+      transactionCount: reportSummary?.total_transactions || 0,
+      averageSale: reportSummary?.average_sale || 0,
     }
-  }, [])
+  }, [reportSummary, transactions])
 
   const paginatedData = useMemo(() => {
     const pages = []
-    for (let i = 0; i < mockTransactions.length; i += ITEMS_PER_PAGE) {
-      pages.push(mockTransactions.slice(i, i + ITEMS_PER_PAGE))
+    const data = transactions.length > 0 ? transactions : []
+    for (let i = 0; i < data.length; i += ITEMS_PER_PAGE) {
+      pages.push(data.slice(i, i + ITEMS_PER_PAGE))
     }
-    return pages
-  }, [])
+    return pages.length > 0 ? pages : [[]]
+  }, [transactions])
 
   const totalPages = paginatedData.length
 
   const generatePDFReport = async () => {
     setIsGenerating(true)
     try {
-      const transactionsHTML = mockTransactions
+      const transactionsHTML = transactions
         .map(
           (txn, index) => `
         <tr style="border-bottom: 1px solid #E5E7EB;">
@@ -146,7 +90,7 @@ export default function DetailedReportScreen() {
           <td style="padding: 12px;">${txn.id}</td>
           <td style="padding: 12px;">${new Date(txn.createdAt).toLocaleString()}</td>
           <td style="padding: 12px; text-transform: capitalize;">${txn.paymentMethod}</td>
-          <td style="padding: 12px; text-align: right; font-weight: bold;">$${txn.total.toFixed(2)}</td>
+          <td style="padding: 12px; text-align: right; font-weight: bold;">${formatCurrency(txn.total, business?.currency)}</td>
         </tr>
       `,
         )
@@ -183,7 +127,7 @@ export default function DetailedReportScreen() {
             <div class="summary">
               <div class="summary-card">
                 <div class="summary-label">Total Sales</div>
-                <div class="summary-value">$${summary.totalSales.toFixed(2)}</div>
+                <div class="summary-value">${formatCurrency(summary.totalSales, business?.currency)}</div>
               </div>
               <div class="summary-card">
                 <div class="summary-label">Transactions</div>
@@ -191,15 +135,15 @@ export default function DetailedReportScreen() {
               </div>
               <div class="summary-card">
                 <div class="summary-label">Avg. Sale</div>
-                <div class="summary-value">$${summary.averageSale.toFixed(2)}</div>
+                <div class="summary-value">${formatCurrency(summary.averageSale, business?.currency)}</div>
               </div>
               <div class="summary-card">
                 <div class="summary-label">Tax Collected</div>
-                <div class="summary-value">$${summary.totalTax.toFixed(2)}</div>
+                <div class="summary-value">${formatCurrency(summary.totalTax, business?.currency)}</div>
               </div>
             </div>
 
-            <h2 style="color: #0D5963; margin-top: 30px;">All Transactions (${mockTransactions.length})</h2>
+            <h2 style="color: #0D5963; margin-top: 30px;">All Transactions (${transactions.length})</h2>
             <table>
               <thead>
                 <tr>
@@ -217,7 +161,7 @@ export default function DetailedReportScreen() {
 
             <div class="footer">
               <p>${business?.name || "POS Terminal"} - Detailed Sales Report</p>
-              <p>This report contains all ${mockTransactions.length} transactions for the selected period</p>
+              <p>This report contains all ${transactions.length} transactions for the selected period</p>
             </div>
           </body>
         </html>
@@ -275,7 +219,14 @@ export default function DetailedReportScreen() {
           </View>
         </View>
 
-        <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
+        {loading ? (
+          <View style={styles.centered}>
+            <ActivityIndicator size="large" color={Colors.teal} />
+            <Text style={styles.loadingText}>Loading transactions...</Text>
+          </View>
+        ) : (
+          <>
+            <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
           {/* Date Range Filter */}
           <TouchableOpacity style={styles.dateRangeButton} onPress={() => setShowDatePicker(true)}>
             <Feather name="calendar" size={20} color={Colors.teal} />
@@ -294,7 +245,7 @@ export default function DetailedReportScreen() {
               iconColor={Colors.success}
               iconBgColor={Colors.green50}
               label="Total Sales"
-              value={`$${summary.totalSales.toFixed(2)}`}
+              value={formatCurrency(summary.totalSales, business?.currency)}
               subtext={`${summary.transactionCount} transactions`}
             />
             <SummaryCard
@@ -302,7 +253,7 @@ export default function DetailedReportScreen() {
               iconColor={Colors.info}
               iconBgColor={Colors.blue50}
               label="Avg. Sale"
-              value={`$${summary.averageSale.toFixed(2)}`}
+              value={formatCurrency(summary.averageSale, business?.currency)}
               subtext="per transaction"
             />
             <SummaryCard
@@ -310,7 +261,7 @@ export default function DetailedReportScreen() {
               iconColor={Colors.purple}
               iconBgColor={Colors.purple50}
               label="Tax"
-              value={`$${summary.totalTax.toFixed(2)}`}
+              value={formatCurrency(summary.totalTax, business?.currency)}
               subtext="collected"
             />
             <SummaryCard
@@ -318,7 +269,7 @@ export default function DetailedReportScreen() {
               iconColor={Colors.error}
               iconBgColor={Colors.red50}
               label="Discounts"
-              value={`$${summary.totalDiscount.toFixed(2)}`}
+              value={formatCurrency(summary.totalDiscount, business?.currency)}
               subtext="given"
             />
           </View>
@@ -327,7 +278,7 @@ export default function DetailedReportScreen() {
           <View style={styles.infoBox}>
             <Ionicons name="information-circle" size={20} color={Colors.info} />
             <Text style={styles.infoText}>
-              All {mockTransactions.length} transactions will be included in the generated PDF report
+              All {transactions.length} transactions will be included in the generated PDF report
             </Text>
           </View>
 
@@ -359,7 +310,7 @@ export default function DetailedReportScreen() {
                           <Text style={styles.transactionMethod}>{transaction.paymentMethod.toUpperCase()}</Text>
                         </View>
                         <View style={styles.transactionRight}>
-                          <Text style={styles.transactionAmount}>${transaction.total.toFixed(2)}</Text>
+                          <Text style={styles.transactionAmount}>{formatCurrency(transaction.total, business?.currency)}</Text>
                           <Text style={styles.transactionItems}>{transaction.items.length} items</Text>
                         </View>
                       </TouchableOpacity>
@@ -427,7 +378,7 @@ export default function DetailedReportScreen() {
             </TouchableOpacity>
           </View>
         </ScrollView>
-
+  
         <DateRangeModal
           visible={showDatePicker}
           startDate={startDate}
@@ -452,6 +403,8 @@ export default function DetailedReportScreen() {
             }
           }}
         />
+          </>
+        )}
       </View>
     </SafeAreaView>
   )
@@ -699,5 +652,16 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: "600",
     color: Colors.white,
+  },
+  centered: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    padding: 20,
+  },
+  loadingText: {
+    marginTop: 12,
+    color: Colors.gray500,
+    fontSize: 14,
   },
 })

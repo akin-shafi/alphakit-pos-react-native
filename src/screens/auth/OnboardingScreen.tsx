@@ -1,4 +1,3 @@
-"use client"
 
 import React, { useState, useMemo } from "react"
 import {
@@ -15,24 +14,37 @@ import {
 import { Ionicons } from "@expo/vector-icons"
 import { Input } from "../../components/Input"
 import { Button } from "../../components/Button"
+import { PasswordStrengthMeter } from "../../components/PasswordStrengthMeter"
 import { useAuth } from "../../contexts/AuthContext"
+import { AuthService } from "../../services/AuthService"
 import { Colors } from "../../constants/Colors"
+import { Typography } from "../../constants/Typography"
+import { Toast } from "../../components/Toast"
 
 const BUSINESS_TYPES = [
   { value: "restaurant", label: "Restaurant", icon: "restaurant" },
-  { value: "bar", label: "Bar", icon: "beer" },
-  { value: "retail", label: "Retail", icon: "cart" },
   { value: "pharmacy", label: "Pharmacy", icon: "medical" },
-  { value: "gas_station", label: "Gas Station", icon: "car" },
+  { value: "retail", label: "Retail Store", icon: "cart" },
+  { value: "supermarket", label: "Supermarket", icon: "basket" },
   { value: "boutique", label: "Boutique", icon: "shirt" },
+  { value: "other", label: "Other", icon: "business" },
+]
+
+const CURRENCIES = [
+  { value: "NGN", label: "Nigerian Naira (₦)" },
+  { value: "USD", label: "US Dollar ($)" },
+  { value: "GBP", label: "British Pound (£)" },
+  { value: "EUR", label: "Euro (€)" },
 ]
 
 export const OnboardingScreen = ({ navigation }: any) => {
   const { registerBusiness } = useAuth()
 
   const [step, setStep] = useState(1)
+  const [useSampleData, setUseSampleData] = useState(true)
   const [loading, setLoading] = useState(false)
   const [errors, setErrors] = useState<Record<string, string>>({})
+  const [toast, setToast] = useState({ visible: false, message: "", type: "error" as "error" | "success" | "info" })
 
   const [business, setBusiness] = useState({
     name: "",
@@ -41,6 +53,7 @@ export const OnboardingScreen = ({ navigation }: any) => {
     city: "",
     phone: "",
     email: "",
+    currency: "NGN",
   })
 
   const [admin, setAdmin] = useState({
@@ -52,99 +65,72 @@ export const OnboardingScreen = ({ navigation }: any) => {
   })
 
   const clearError = (field: string) => {
-    setErrors((prev) => {
-      const { [field]: _, ...rest } = prev
-      return rest
-    })
+    if (errors[field]) {
+      setErrors((prev) => {
+        const next = { ...prev }
+        delete next[field]
+        return next
+      })
+    }
   }
 
-  const validateStep1 = (): boolean => {
-    const e: Record<string, string> = {}
-    if (!business.name.trim()) e.name = "Business name is required"
-    if (!business.type) e.type = "Please select a business type"
-    setErrors(e)
-    return Object.keys(e).length === 0
-  }
+  const validateStep = () => {
+    const newErrors: Record<string, string> = {}
 
-  const validateStep2 = (): boolean => {
-    const e: Record<string, string> = {}
-    if (!business.address.trim()) e.address = "Business address is required"
-    if (!business.city.trim()) e.city = "City is required"
-    if (business.phone.trim() && !/^[0-9+\-\s()]+$/.test(business.phone.trim())) {
-      e.phone = "Invalid phone number format"
-    }
-    if (business.email.trim() && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(business.email.trim())) {
-      e.email = "Invalid email address"
-    }
-    setErrors(e)
-    return Object.keys(e).length === 0
-  }
-
-  const validateStep3 = (): boolean => {
-    const e: Record<string, string> = {}
-    if (!admin.firstName.trim()) e.firstName = "First name is required"
-    if (!admin.lastName.trim()) e.lastName = "Last name is required"
-    if (!admin.email.trim()) {
-      e.email = "Email is required"
-    } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(admin.email.trim())) {
-      e.email = "Invalid email address"
-    }
-    if (!admin.password.trim()) {
-      e.password = "Password is required"
-    } else if (admin.password.length < 4) {
-      e.password = "Password must be at least 4 characters"
-    }
-    if (admin.password !== admin.confirmPassword) {
-      e.confirmPassword = "Passwords do not match"
-    }
-    setErrors(e)
-    return Object.keys(e).length === 0
-  }
-
-  const isCurrentStepValid = useMemo(() => {
     if (step === 1) {
-      return business.name.trim() !== "" && business.type !== ""
+      if (!business.name.trim()) newErrors.name = "Business name is required"
+      if (!business.type) newErrors.type = "Please select a business type"
+    } else if (step === 2) {
+      if (!business.address.trim()) newErrors.address = "Address is required"
+      if (!business.city.trim()) newErrors.city = "City is required"
+    } else if (step === 3) {
+      if (!admin.firstName.trim()) newErrors.firstName = "First name is required"
+      if (!admin.lastName.trim()) newErrors.lastName = "Last name is required"
+      if (!admin.email.trim()) {
+        newErrors.email = "Email is required"
+      } else if (!/\S+@\S+\.\S+/.test(admin.email)) {
+        newErrors.email = "Invalid email format"
+      }
+      if (!admin.password) {
+        newErrors.password = "Password is required"
+      } else if (admin.password.length < 8) {
+        newErrors.password = "Min 8 characters"
+      }
+      if (admin.password !== admin.confirmPassword) {
+        newErrors.confirmPassword = "Passwords do not match"
+      }
     }
-    if (step === 2) {
-      const addressValid = business.address.trim() !== ""
-      const cityValid = business.city.trim() !== ""
-      const phoneValid = !business.phone.trim() || /^[0-9+\-\s()]+$/.test(business.phone.trim())
-      const emailValid = !business.email.trim() || /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(business.email.trim())
-      return addressValid && cityValid && phoneValid && emailValid
-    }
-    if (step === 3) {
-      return (
-        admin.firstName.trim() !== "" &&
-        admin.lastName.trim() !== "" &&
-        admin.email.trim() !== "" &&
-        /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(admin.email.trim()) &&
-        admin.password.trim() !== "" &&
-        admin.password.length >= 4 &&
-        admin.password === admin.confirmPassword
-      )
-    }
-    return false
-  }, [step, business.name, business.type, business.address, business.city, business.phone, business.email, admin])
+
+    setErrors(newErrors)
+    return Object.keys(newErrors).length === 0
+  }
 
   const handleNext = () => {
-    let isValid = false
-
-    if (step === 1) {
-      isValid = validateStep1()
-    } else if (step === 2) {
-      isValid = validateStep2()
-    } else if (step === 3) {
-      isValid = validateStep3()
-    }
-
-    if (isValid) {
-      if (step === 3) {
-        submit()
-      } else {
+    if (validateStep()) {
+      if (step < 4) {
         setStep(step + 1)
+      } else {
+        submit()
       }
     }
   }
+
+  const isCurrentStepValid = useMemo(() => {
+    if (step === 1) return !!(business.name.trim() && business.type)
+    if (step === 2) return !!(business.address.trim() && business.city.trim() && business.currency)
+    if (step === 3) {
+      return !!(
+        admin.firstName.trim() &&
+        admin.lastName.trim() &&
+        admin.email.trim() &&
+        admin.password &&
+        admin.password.length >= 8 &&
+        admin.password === admin.confirmPassword
+      )
+    }
+    if (step === 4) return true
+    return false
+  }, [step, business, admin, useSampleData])
 
   const submit = async () => {
     setLoading(true)
@@ -157,6 +143,7 @@ export const OnboardingScreen = ({ navigation }: any) => {
           city: business.city.trim(),
           email: business.email.trim() || undefined,
           phone: business.phone.trim() || undefined,
+          currency: business.currency,
         },
         user: {
           first_name: admin.firstName.trim(),
@@ -165,37 +152,53 @@ export const OnboardingScreen = ({ navigation }: any) => {
           password: admin.password,
         },
       })
-      navigation.replace("Login")
+
+      if (useSampleData) {
+        try {
+          // We need business ID for seeding, but registerBusiness returns it.
+          // However, the seeding call needs the business object to be in state.
+          // Since we are auto-logged in by registerBusiness, we can call seed.
+          await AuthService.seedSampleData(0, business.type.toUpperCase()); // businessId is handled by header in backend
+        } catch (seedError) {
+          console.warn("Failed to seed sample data:", seedError);
+        }
+      }
+
+      setToast({ visible: true, message: "Account created! Verify your email.", type: "success" })
+      setTimeout(() => {
+        navigation.navigate("OTPVerification", { email: admin.email.trim() })
+      }, 1000)
     } catch (error: any) {
-      alert(error?.message || "Failed to complete onboarding")
+      const msg = error?.response?.data?.message || error?.message || "Failed to complete onboarding"
+      setToast({ visible: true, message: msg, type: "error" })
     } finally {
       setLoading(false)
     }
   }
 
   return (
-    <KeyboardAvoidingView
-      behavior={Platform.OS === "ios" ? "padding" : undefined}
-      style={styles.container}
-    >
+    <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined} style={styles.container}>
       <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
         <View style={styles.inner}>
           <View style={styles.header}>
-            {step > 1 && (
-              <TouchableOpacity onPress={() => setStep(step - 1)}>
-                <Ionicons name="arrow-back" size={24} color={Colors.gray800} />
-              </TouchableOpacity>
-            )}
-            <Text style={styles.title}>Business Setup</Text>
-            <Text style={styles.subtitle}>Step {step} of 3</Text>
+            <View style={styles.headerTop}>
+              {step > 1 && (
+                <TouchableOpacity onPress={() => setStep(step - 1)} style={styles.backButton}>
+                  <Ionicons name="arrow-back" size={24} color={Colors.gray800} />
+                </TouchableOpacity>
+              )}
+              <View style={styles.headerText}>
+                <Text style={styles.title}>Business Setup</Text>
+                <Text style={styles.subtitle}>Step {step} of 4</Text>
+              </View>
+            </View>
           </View>
 
           <View style={styles.progressContainer}>
-            <View style={[styles.progressBar, { width: `${(step / 3) * 100}%` }]} />
+            <View style={[styles.progressBar, { width: `${(step / 4) * 100}%` }]} />
           </View>
 
           <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 30 }}>
-            {/* Step 1 */}
             {step === 1 && (
               <>
                 <Input
@@ -216,10 +219,7 @@ export const OnboardingScreen = ({ navigation }: any) => {
                   {BUSINESS_TYPES.map((item) => (
                     <TouchableOpacity
                       key={item.value}
-                      style={[
-                        styles.typeCard,
-                        business.type === item.value && styles.typeCardActive,
-                      ]}
+                      style={[styles.typeCard, business.type === item.value && styles.typeCardActive]}
                       onPress={() => {
                         setBusiness({ ...business, type: item.value })
                         clearError("type")
@@ -230,12 +230,7 @@ export const OnboardingScreen = ({ navigation }: any) => {
                         size={28}
                         color={business.type === item.value ? "#fff" : Colors.gray600}
                       />
-                      <Text
-                        style={[
-                          styles.typeLabel,
-                          business.type === item.value && styles.typeLabelActive,
-                        ]}
-                      >
+                      <Text style={[styles.typeLabel, business.type === item.value && styles.typeLabelActive]}>
                         {item.label}
                       </Text>
                     </TouchableOpacity>
@@ -244,7 +239,6 @@ export const OnboardingScreen = ({ navigation }: any) => {
               </>
             )}
 
-            {/* Step 2 */}
             {step === 2 && (
               <>
                 <Input
@@ -290,13 +284,38 @@ export const OnboardingScreen = ({ navigation }: any) => {
                     clearError("email")
                   }}
                   keyboardType="email-address"
-                  autoCapitalize="none"
                   error={errors.email}
                 />
+
+                <Text style={styles.currencySectionLabel}>System Currency</Text>
+                <View style={styles.currencyGrid}>
+                  {CURRENCIES.map((cur) => (
+                    <TouchableOpacity
+                      key={cur.value}
+                      style={[
+                        styles.currencyCard,
+                        business.currency === cur.value && styles.currencyCardActive,
+                      ]}
+                      onPress={() => {
+                        setBusiness({ ...business, currency: cur.value })
+                        clearError("currency")
+                      }}
+                    >
+                      <Text
+                        style={[
+                          styles.currencyLabel,
+                          business.currency === cur.value && styles.currencyLabelActive,
+                        ]}
+                      >
+                        {cur.label}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+                {errors.currency && <Text style={styles.errorText}>{errors.currency}</Text>}
               </>
             )}
 
-            {/* Step 3 */}
             {step === 3 && (
               <>
                 <Input
@@ -346,6 +365,8 @@ export const OnboardingScreen = ({ navigation }: any) => {
                   error={errors.password}
                 />
 
+                <PasswordStrengthMeter password={admin.password} />
+
                 <Input
                   label="Confirm Password"
                   placeholder="Re-enter your password"
@@ -359,11 +380,56 @@ export const OnboardingScreen = ({ navigation }: any) => {
                 />
               </>
             )}
+
+            {step === 4 && (
+              <View style={styles.sampleDataContainer}>
+                <View style={styles.iconCircle}>
+                  <Ionicons name="gift-outline" size={48} color={Colors.teal} />
+                </View>
+                <Text style={styles.sampleDataTitle}>Populate Sample Data?</Text>
+                <Text style={styles.sampleDataText}>
+                  Would you like to pre-populate your account with sample products, categories, and inventory based on the
+                  {BUSINESS_TYPES.find((t) => t.value === business.type)?.label || "selected"} business type?
+                </Text>
+
+                <View style={styles.choiceContainer}>
+                  <TouchableOpacity
+                    style={[styles.choiceCard, useSampleData === true && styles.choiceCardActive]}
+                    onPress={() => setUseSampleData(true)}
+                  >
+                    <Ionicons
+                      name="checkbox"
+                      size={24}
+                      color={useSampleData === true ? Colors.teal : Colors.gray300}
+                    />
+                    <View style={styles.choiceTextContainer}>
+                      <Text style={styles.choiceLabel}>Yes, populate data</Text>
+                      <Text style={styles.choiceSublabel}>Start with a ready-made inventory</Text>
+                    </View>
+                  </TouchableOpacity>
+
+                  <TouchableOpacity
+                    style={[styles.choiceCard, useSampleData === false && styles.choiceCardActive]}
+                    onPress={() => setUseSampleData(false)}
+                  >
+                    <Ionicons
+                      name="square-outline"
+                      size={24}
+                      color={useSampleData === false ? Colors.teal : Colors.gray300}
+                    />
+                    <View style={styles.choiceTextContainer}>
+                      <Text style={styles.choiceLabel}>No, start empty</Text>
+                      <Text style={styles.choiceSublabel}>I'll add my own products manually</Text>
+                    </View>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            )}
           </ScrollView>
 
           <View style={styles.footer}>
             <Button
-              title={step === 3 ? "Complete Setup" : "Continue"}
+              title={step === 4 ? "Complete Setup" : "Continue"}
               onPress={handleNext}
               loading={loading}
               disabled={!isCurrentStepValid || loading}
@@ -372,6 +438,13 @@ export const OnboardingScreen = ({ navigation }: any) => {
               }}
             />
           </View>
+
+          <Toast
+            visible={toast.visible}
+            message={toast.message}
+            type={toast.type}
+            onHide={() => setToast((prev) => ({ ...prev, visible: false }))}
+          />
         </View>
       </TouchableWithoutFeedback>
     </KeyboardAvoidingView>
@@ -382,8 +455,11 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: "#fff" },
   inner: { flex: 1, paddingHorizontal: 20, paddingTop: 50 },
   header: { marginBottom: 20 },
+  headerTop: { flexDirection: "row", alignItems: "center" },
+  backButton: { marginRight: 15 },
+  headerText: { flex: 1 },
   title: { fontSize: 26, fontWeight: "700", color: Colors.gray900 },
-  subtitle: { fontSize: 16, color: Colors.gray600, marginTop: 6 },
+  subtitle: { fontSize: 16, color: Colors.gray600, marginTop: 4 },
   progressContainer: {
     height: 6,
     backgroundColor: "#e0e0e0",
@@ -429,4 +505,98 @@ const styles = StyleSheet.create({
   },
   footer: { paddingVertical: 20 },
   errorText: { color: "#e74c3c", fontSize: 13, marginTop: 4, marginLeft: 4 },
+  sampleDataContainer: {
+    alignItems: "center",
+    paddingTop: 20,
+  },
+  iconCircle: {
+    width: 100,
+    height: 100,
+    borderRadius: 50,
+    backgroundColor: Colors.tealLight,
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 24,
+  },
+  sampleDataTitle: {
+    fontSize: Typography.xl,
+    fontWeight: Typography.bold,
+    color: Colors.gray900,
+    marginBottom: 12,
+    textAlign: "center",
+  },
+  sampleDataText: {
+    fontSize: Typography.base,
+    color: Colors.gray600,
+    textAlign: "center",
+    lineHeight: 22,
+    marginBottom: 32,
+    paddingHorizontal: 10,
+  },
+  choiceContainer: {
+    width: "100%",
+    gap: 16,
+  },
+  choiceCard: {
+    flexDirection: "row",
+    alignItems: "center",
+    padding: 20,
+    borderRadius: 12,
+    borderWidth: 1.5,
+    borderColor: Colors.gray200,
+    backgroundColor: Colors.white,
+  },
+  choiceCardActive: {
+    borderColor: Colors.teal,
+    backgroundColor: Colors.teal + "05", // very light teal
+  },
+  choiceTextContainer: {
+    marginLeft: 16,
+    flex: 1,
+  },
+  choiceLabel: {
+    fontSize: Typography.base,
+    fontWeight: Typography.semibold,
+    color: Colors.gray900,
+    marginBottom: 2,
+  },
+  choiceSublabel: {
+    fontSize: Typography.sm,
+    color: Colors.gray500,
+  },
+  currencySectionLabel: {
+    fontSize: Typography.base,
+    fontWeight: Typography.semibold,
+    color: Colors.gray700,
+    marginTop: 20,
+    marginBottom: 12,
+  },
+  currencyGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 10,
+    marginBottom: 10,
+  },
+  currencyCard: {
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: Colors.gray200,
+    backgroundColor: Colors.white,
+    minWidth: "47%",
+  },
+  currencyCardActive: {
+    borderColor: Colors.teal,
+    backgroundColor: Colors.teal + "10",
+  },
+  currencyLabel: {
+    fontSize: Typography.sm,
+    color: Colors.gray600,
+    textAlign: "center",
+  },
+  currencyLabelActive: {
+    color: Colors.teal,
+    fontWeight: Typography.bold,
+  },
 })

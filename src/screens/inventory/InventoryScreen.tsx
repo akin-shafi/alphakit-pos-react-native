@@ -1,28 +1,41 @@
-"use client"
+
 
 import type React from "react"
-import { useState } from "react"
-import { View, Text, StyleSheet, FlatList, TouchableOpacity } from "react-native"
+import { useState, useEffect } from "react"
+import { View, Text, StyleSheet, FlatList, TouchableOpacity, Alert, RefreshControl } from "react-native"
 import { Ionicons } from "@expo/vector-icons"
 import { useAuth } from "../../contexts/AuthContext"
 import { useInventory } from "../../contexts/InventoryContext"
 import { RolePermissions } from "../../constants/Roles"
 import { Input } from "../../components/Input"
+import { Button } from "../../components/Button"
 import { ProductDrawer } from "../../components/ProductDrawer"
+import { AuthService } from "../../services/AuthService"
 import { Colors } from "../../constants/Colors"
 import { Typography } from "../../constants/Typography"
+import { formatCurrency } from "../../utils/Formatter"
 import type { Product } from "../../types"
 
-export const InventoryScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
+export const InventoryScreen: React.FC<{ navigation: any; route: any }> = ({ navigation, route }) => {
   const { business, user } = useAuth()
-  const { products, searchQuery, setSearchQuery, getFilteredProducts } = useInventory()
+  const { products, searchQuery, setSearchQuery, getFilteredProducts, addProduct, updateProduct, deleteProduct, refreshData, loading: inventoryLoading } = useInventory()
+  const [loading, setLoading] = useState(false)
 
-  const canManage = user ? RolePermissions[user.role].canManageInventory : false
+  const roleKey = (user?.role?.toLowerCase() || "") as any
+  const canManage = RolePermissions[roleKey as keyof typeof RolePermissions]?.canManageInventory || false
   const filteredProducts = getFilteredProducts()
 
   const [drawerVisible, setDrawerVisible] = useState(false)
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null)
   const [drawerMode, setDrawerMode] = useState<"add" | "edit">("add")
+  
+  useEffect(() => {
+    if (route.params?.action === "add") {
+      handleAddProduct()
+      // Clear the param after handling it
+      navigation.setParams({ action: undefined })
+    }
+  }, [route.params?.action])
 
   const handleAddProduct = () => {
     setSelectedProduct(null)
@@ -36,30 +49,61 @@ export const InventoryScreen: React.FC<{ navigation: any }> = ({ navigation }) =
     setDrawerVisible(true)
   }
 
-  const handleSaveProduct = (product: Partial<Product>) => {
-    console.log("[v0] Saving product:", product)
-    // TODO: Implement actual save logic
+  const handleSaveProduct = async (product: Partial<Product>) => {
+    try {
+      if (drawerMode === "add") {
+        await addProduct(product)
+        Alert.alert("Success", "Product added successfully!")
+      } else if (selectedProduct) {
+        await updateProduct(selectedProduct.id.toString(), product)
+        Alert.alert("Success", "Product updated successfully!")
+      }
+      setDrawerVisible(false)
+    } catch (e) {
+      Alert.alert("Error", "Failed to save product. Please try again.")
+      throw e
+    }
+  }
+
+  const handleDeleteProduct = async (productId: string) => {
+    try {
+      await deleteProduct(productId)
+      Alert.alert("Success", "Product deleted successfully!")
+      setDrawerVisible(false)
+    } catch (e) {
+      Alert.alert("Error", "Failed to delete product. Please try again.")
+      throw e
+    }
+  }
+
+  const { categories } = useInventory()
+
+  const getCategoryName = (categoryId: number) => {
+    const cat = categories.find(c => c.id === categoryId)
+    return cat?.name || "Unknown"
   }
 
   // Category colors matching reference design
-  const getCategoryColor = (category: string) => {
+  const getCategoryColor = (categoryId: number) => {
+    const catName = getCategoryName(categoryId)
     const colorMap: Record<string, string> = {
       Bakery: "#FEE2E2",
       Snacks: "#D1FAE5",
       Beverages: "#DBEAFE",
       Dairy: "#FCE7F3",
     }
-    return colorMap[category] || Colors.gray100
+    return colorMap[catName] || Colors.gray100
   }
 
-  const getCategoryTextColor = (category: string) => {
+  const getCategoryTextColor = (categoryId: number) => {
+    const catName = getCategoryName(categoryId)
     const colorMap: Record<string, string> = {
       Bakery: "#991B1B",
       Snacks: "#065F46",
       Beverages: "#1E40AF",
       Dairy: "#831843",
     }
-    return colorMap[category] || Colors.gray700
+    return colorMap[catName] || Colors.gray700
   }
 
   return (
@@ -71,12 +115,20 @@ export const InventoryScreen: React.FC<{ navigation: any }> = ({ navigation }) =
             <Text style={styles.businessName}>{business?.name || "Demo Store"}</Text>
             <Text style={styles.productCount}>{filteredProducts.length} products</Text>
           </View>
-          {canManage && (
-            <TouchableOpacity style={styles.addButton} onPress={handleAddProduct}>
-              <Ionicons name="add" size={24} color={Colors.white} />
-              <Text style={styles.addButtonText}>Add</Text>
+          <View style={{ flexDirection: 'row', gap: 8, alignItems: 'center' }}>
+            <TouchableOpacity 
+              style={{ padding: 8, backgroundColor: Colors.white, borderRadius: 8, borderWidth: 1, borderColor: Colors.gray200 }} 
+              onPress={() => navigation.navigate("Dashboard")}
+            >
+              <Ionicons name="apps" size={24} color={Colors.teal} />
             </TouchableOpacity>
-          )}
+            {canManage && (
+              <TouchableOpacity style={styles.addButton} onPress={handleAddProduct}>
+                <Ionicons name="add" size={24} color={Colors.white} />
+                <Text style={styles.addButtonText}>Add</Text>
+              </TouchableOpacity>
+            )}
+          </View>
         </View>
 
         <View style={styles.searchContainer}>
@@ -94,7 +146,7 @@ export const InventoryScreen: React.FC<{ navigation: any }> = ({ navigation }) =
       {/* Products List */}
       <FlatList
         data={filteredProducts}
-        keyExtractor={(item) => item.id}
+        keyExtractor={(item) => item.id.toString()}
         renderItem={({ item }) => (
           <TouchableOpacity
             style={styles.productCard}
@@ -104,9 +156,9 @@ export const InventoryScreen: React.FC<{ navigation: any }> = ({ navigation }) =
             <View style={styles.productHeader}>
               <View>
                 <Text style={styles.productName}>{item.name}</Text>
-                <View style={[styles.categoryBadge, { backgroundColor: getCategoryColor(item.category) }]}>
-                  <Text style={[styles.categoryText, { color: getCategoryTextColor(item.category) }]}>
-                    {item.category}
+                <View style={[styles.categoryBadge, { backgroundColor: getCategoryColor(item.category_id) }]}>
+                  <Text style={[styles.categoryText, { color: getCategoryTextColor(item.category_id) }]}>
+                    {getCategoryName(item.category_id)}
                   </Text>
                 </View>
               </View>
@@ -116,44 +168,63 @@ export const InventoryScreen: React.FC<{ navigation: any }> = ({ navigation }) =
               </View>
             </View>
             <View style={styles.productFooter}>
-              <Text style={styles.productPrice}>Price: ${item.price.toFixed(2)}</Text>
+              <Text style={styles.productPrice}>Price: {formatCurrency(item.price, business?.currency)}</Text>
               <Text style={styles.productSku}>SKU: {item.sku}</Text>
             </View>
           </TouchableOpacity>
         )}
         contentContainerStyle={styles.listContent}
+        refreshControl={
+          <RefreshControl
+            refreshing={inventoryLoading}
+            onRefresh={refreshData}
+            colors={[Colors.teal]}
+            tintColor={Colors.teal}
+          />
+        }
         ListEmptyComponent={
           <View style={styles.empty}>
-            <Ionicons name="cube-outline" size={64} color={Colors.gray300} />
+            <View style={styles.emptyIconContainer}>
+              <Ionicons name="cube-outline" size={64} color={Colors.gray300} />
+            </View>
             <Text style={styles.emptyText}>No products found</Text>
+            
+            {canManage && !business?.is_seeded && (
+              <View style={styles.seedContainer}>
+                <Text style={styles.seedText}>
+                  Want to start quickly? Populate your inventory with sample {business?.type || "retail"} data.
+                </Text>
+                <Button
+                  title="Populate Sample Data"
+                  onPress={async () => {
+                    try {
+                      setLoading(true)
+                      await AuthService.seedSampleData(business?.id || 0, business?.type.toUpperCase() || "RETAIL")
+                      await refreshData()
+                      alert("Sample data populated successfully!")
+                    } catch (e) {
+                      alert("Failed to seed data.")
+                    } finally {
+                      setLoading(false)
+                    }
+                  }}
+                  variant="outline"
+                  primaryColor={Colors.teal}
+                  loading={loading}
+                />
+              </View>
+            )}
           </View>
         }
       />
 
-      {/* Bottom Navigation */}
-      <View style={styles.bottomNav}>
-        <TouchableOpacity style={styles.navItem} onPress={() => navigation.navigate("POSHome")}>
-          <Ionicons name="cart-outline" size={26} color={Colors.gray400} />
-          <Text style={styles.navText}>POS</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.navItem}>
-          <Ionicons name="cube" size={26} color={Colors.teal} />
-          <Text style={[styles.navText, styles.navTextActive]}>Inventory</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.navItem} onPress={() => navigation.navigate("Reports")}>
-          <Ionicons name="bar-chart-outline" size={26} color={Colors.gray400} />
-          <Text style={styles.navText}>Reports</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.navItem} onPress={() => navigation.navigate("Settings")}>
-          <Ionicons name="settings-outline" size={26} color={Colors.gray400} />
-          <Text style={styles.navText}>Settings</Text>
-        </TouchableOpacity>
-      </View>
+
 
       <ProductDrawer
         visible={drawerVisible}
         onClose={() => setDrawerVisible(false)}
         onSave={handleSaveProduct}
+        onDelete={handleDeleteProduct}
         product={selectedProduct}
         mode={drawerMode}
       />
@@ -289,37 +360,45 @@ const styles = StyleSheet.create({
   empty: {
     alignItems: "center",
     justifyContent: "center",
-    paddingVertical: 64,
+    paddingVertical: 80,
+    paddingHorizontal: 40,
+  },
+  emptyIconContainer: {
+    width: 120,
+    height: 120,
+    borderRadius: 60,
+    backgroundColor: Colors.white,
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 24,
+    shadowColor: Colors.black,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 2,
   },
   emptyText: {
-    fontSize: Typography.base,
-    color: Colors.gray400,
-    marginTop: 16,
+    fontSize: Typography.xl,
+    fontWeight: Typography.bold,
+    color: Colors.gray900,
+    marginBottom: 16,
   },
-  bottomNav: {
-    position: "absolute",
-    bottom: 0,
-    left: 0,
-    right: 0,
-    flexDirection: "row",
-    backgroundColor: Colors.white,
-    borderTopWidth: 1,
-    borderTopColor: Colors.gray200,
-    paddingBottom: 8,
-    paddingTop: 8,
-  },
-  navItem: {
-    flex: 1,
+  seedContainer: {
     alignItems: "center",
-    paddingVertical: 8,
-    gap: 4,
+    marginTop: 16,
+    padding: 24,
+    backgroundColor: Colors.teal + "05",
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: Colors.teal + "20",
+    width: "100%",
   },
-  navText: {
-    fontSize: Typography.xs,
+  seedText: {
+    fontSize: Typography.base,
     color: Colors.gray600,
+    textAlign: "center",
+    marginBottom: 24,
+    lineHeight: 22,
   },
-  navTextActive: {
-    color: Colors.teal,
-    fontWeight: Typography.semibold,
-  },
+
 })

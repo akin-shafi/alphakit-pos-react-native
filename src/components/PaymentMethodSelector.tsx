@@ -1,11 +1,13 @@
-"use client"
+
 
 import type React from "react"
+import { useState } from "react"
 import { View, Text, StyleSheet, TouchableOpacity, Modal } from "react-native"
 import { Ionicons } from "@expo/vector-icons"
 import { Colors } from "../constants/Colors"
 import { Typography } from "../constants/Typography"
 import type { PaymentConfig } from "../types"
+import { ProviderSelector } from "./ProviderSelector"
 
 interface PaymentMethod {
   id: string
@@ -30,6 +32,8 @@ export const PaymentMethodSelector: React.FC<PaymentMethodSelectorProps> = ({
   config,
   primaryColor,
 }) => {
+  const [showProviderSelector, setShowProviderSelector] = useState(false)
+
   const paymentMethods: PaymentMethod[] = [
     {
       id: "card",
@@ -69,13 +73,24 @@ export const PaymentMethodSelector: React.FC<PaymentMethodSelectorProps> = ({
   ]
 
   const handleSelect = (methodId: string) => {
-    if (methodId === "external-terminal" && config.externalTerminalProviders.length > 1) {
-      // Show provider selection if multiple providers configured
-      // For now, just pass "moniepoint" as default
-      onSelect(methodId, config.externalTerminalProviders[0])
+    if (methodId === "external-terminal") {
+      if (config.externalTerminalProviders.length > 1) {
+        // Show provider selection modal
+        setShowProviderSelector(true)
+      } else {
+        // Use the only available provider
+        onSelect(methodId, config.externalTerminalProviders[0] || "moniepoint")
+      }
     } else {
       onSelect(methodId)
     }
+  }
+
+  const handleProviderSelect = (provider: string) => {
+    // Call onSelect first, which triggers the parent's dismissal and navigation (with a delay)
+    onSelect("external-terminal", provider)
+    // Then hide this provider selector
+    setShowProviderSelector(false)
   }
 
   return (
@@ -83,33 +98,45 @@ export const PaymentMethodSelector: React.FC<PaymentMethodSelectorProps> = ({
       <View style={styles.overlay}>
         <View style={styles.modal}>
           <View style={styles.modalHeader}>
-            <Text style={styles.modalTitle}>Select Payment Method</Text>
+            <Text style={styles.modalTitle}>
+              {showProviderSelector ? "Select Provider" : "Select Payment Method"}
+            </Text>
             <TouchableOpacity onPress={onClose} style={styles.closeButton}>
               <Ionicons name="close" size={24} color={Colors.gray600} />
             </TouchableOpacity>
           </View>
 
-          <View style={styles.methods}>
-            {paymentMethods
-              .filter((method) => method.enabled)
-              .map((method) => (
-                <TouchableOpacity
-                  key={method.id}
-                  style={styles.methodCard}
-                  onPress={() => handleSelect(method.id)}
-                  activeOpacity={0.7}
-                >
-                  <View style={[styles.methodIcon, { backgroundColor: `${primaryColor}15` }]}>
-                    <Ionicons name={method.icon as any} size={28} color={primaryColor} />
-                  </View>
-                  <View style={styles.methodInfo}>
-                    <Text style={styles.methodLabel}>{method.label}</Text>
-                    <Text style={styles.methodDescription}>{method.description}</Text>
-                  </View>
-                  <Ionicons name="chevron-forward" size={20} color={Colors.gray400} />
-                </TouchableOpacity>
-              ))}
-          </View>
+          {showProviderSelector ? (
+            <ProviderSelector
+              visible={showProviderSelector}
+              onClose={() => setShowProviderSelector(false)}
+              onSelect={handleProviderSelect}
+              providers={config.externalTerminalProviders}
+              primaryColor={primaryColor}
+            />
+          ) : (
+            <View style={styles.methods}>
+              {paymentMethods
+                .filter((method) => method.enabled)
+                .map((method) => (
+                  <TouchableOpacity
+                    key={method.id}
+                    style={styles.methodCard}
+                    onPress={() => handleSelect(method.id)}
+                    activeOpacity={0.7}
+                  >
+                    <View style={[styles.methodIcon, { backgroundColor: `${primaryColor}15` }]}>
+                      <Ionicons name={method.icon as any} size={28} color={primaryColor} />
+                    </View>
+                    <View style={styles.methodInfo}>
+                      <Text style={styles.methodLabel}>{method.label}</Text>
+                      <Text style={styles.methodDescription}>{method.description}</Text>
+                    </View>
+                    <Ionicons name="chevron-forward" size={20} color={Colors.gray400} />
+                  </TouchableOpacity>
+                ))}
+            </View>
+          )}
         </View>
       </View>
     </Modal>

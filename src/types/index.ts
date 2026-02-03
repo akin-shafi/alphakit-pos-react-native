@@ -9,12 +9,14 @@ import type { UserRole } from "../constants/Roles"
 export interface Tenant {
   id: string
   name: string
-  createdAt: string
+  owner_id: number
+  created_at?: string
+  updated_at?: string
 }
 
 export interface Business {
-  id: string
-  tenantId: string
+  id: number
+  tenant_id: string
   name: string
   type:
     | "restaurant"
@@ -25,19 +27,26 @@ export interface Business {
     | "bar"
   address?: string
   city?: string
+  phone?: string
   currency?: string
-  createdAt: string
+  is_seeded?: boolean
+  created_at?: string
+  updated_at?: string
 }
 
 export interface User {
-  id: string
-  tenantId: string
-  firstName: string
-  lastName: string
+  id: number
+  tenant_id: string
+  first_name: string
+  last_name: string
   email: string
-  role: UserRole
+  password: string
+  role: string
   active: boolean
-  createdAt: string
+  is_verified: boolean
+  outlet_id?: number | null
+  created_at?: string
+  updated_at?: string
 }
 
 
@@ -50,6 +59,7 @@ export interface RegisterBusinessPayload {
     city: string
     email?: string
     phone?: string
+    currency: string
   }
   user: {
     first_name: string
@@ -91,27 +101,30 @@ export interface LoginPayload {
  */
 
 export interface Product {
-  id: string
-  businessId: string
+  id: number
+  business_id: number
+  category_id: number
   name: string
   sku: string
-  barcode?: string
-  category: string
+  description?: string
   price: number
   cost: number
   stock: number
-  minStock: number
-  image?: string
-  isActive: boolean
+  min_stock: number
+  image_url?: string
+  barcode?: string
+  active: boolean
+  created_at?: string
+  updated_at?: string
 }
 
 export interface Category {
-  id: string
-  businessId: string
+  id: number
+  business_id: number
   name: string
-  icon: string
-  color: string
-  sortOrder: number
+  description?: string
+  created_at?: string
+  updated_at?: string
 }
 
 export interface CartItem {
@@ -134,6 +147,9 @@ export interface Sale {
   externalTerminalProvider?: "moniepoint" | "opay" | "other"
   status: "completed" | "pending" | "voided"
   createdAt: string
+  syncStatus: "synced" | "pending" | "failed"
+  cashierName?: string
+  receiptNo?: string
 }
 
 /**

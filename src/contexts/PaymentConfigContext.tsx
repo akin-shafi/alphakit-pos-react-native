@@ -1,7 +1,4 @@
-"use client"
-
-import type React from "react"
-import { createContext, useState, useContext, useEffect } from "react"
+import React, { createContext, useState, useContext, useEffect } from "react"
 import type { PaymentConfig } from "../types"
 
 interface PaymentConfigContextType {
