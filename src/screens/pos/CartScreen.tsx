@@ -12,15 +12,27 @@ import { Colors, BusinessThemes } from "../../constants/Colors"
 import { Typography } from "../../constants/Typography"
 import { formatCurrency } from "../../utils/Formatter"
 import { SalesService } from "../../services/SalesService"
+import { useSettings } from "../../contexts/SettingsContext"
+import { DraftService } from "../../services/DraftService"
 
 export const CartScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
   const { business } = useAuth()
-  const { items, updateQuantity, removeItem, getSubtotal, getTax, getTotal, clearCart } = useCart()
+  const { items, updateQuantity, removeItem, getSubtotal, clearCart } = useCart()
   const { config } = usePaymentConfig()
+  const { enableDrafts, enableTables, enableTax, taxRate } = useSettings()
   const [showPaymentSelector, setShowPaymentSelector] = useState(false)
   const [isProcessing, setIsProcessing] = useState(false)
 
   const theme = business ? BusinessThemes[business.type] : BusinessThemes.default
+
+  const getTax = () => {
+    if (!enableTax) return 0
+    return (getSubtotal() * taxRate) / 100
+  }
+
+  const getTotal = () => {
+    return getSubtotal() + getTax()
+  }
 
   const handleCheckoutPress = () => {
     if (config.defaultMode === "ask-every-time") {
@@ -67,6 +79,7 @@ export const CartScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
         })),
         payment_method: paymentMethod.toUpperCase(),
         amount_paid: getTotal(),
+        tax: getTax(),
         discount: items.reduce((sum, item) => sum + item.discount, 0),
       }
 
@@ -180,6 +193,64 @@ export const CartScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
             <Text style={[styles.grandTotalValue, { color: theme.primary }]}>{formatCurrency(getTotal(), business?.currency)}</Text>
           </View>
         </Card>
+
+        {enableDrafts && (
+           <Button
+             title="Save to Draft"
+             variant="outline"
+             onPress={() => {
+                if (enableTables) {
+                    Alert.prompt(
+                        "Select Table",
+                        "Enter table number for this order",
+                        [
+                            { text: "Cancel", style: "cancel" },
+                            {
+                                text: "Save",
+                                onPress: async (tableNumber) => {
+                                    setIsProcessing(true);
+                                    try {
+                                        await DraftService.createDraft(items, tableNumber);
+                                        clearCart();
+                                        Alert.alert("Success", "Order saved to drafts");
+                                        navigation.goBack();
+                                    } catch(e: any) {
+                                        Alert.alert("Error", e.message || "Failed to save draft");
+                                    } finally {
+                                        setIsProcessing(false);
+                                    }
+                                }
+                            }
+                        ],
+                        "plain-text"
+                    )
+                } else {
+                     Alert.alert("Save Draft", "Save this order as draft?", [
+                        { text: "Cancel", style: "cancel" },
+                         {
+                            text: "Save",
+                            onPress: async () => {
+                                setIsProcessing(true);
+                                try {
+                                    await DraftService.createDraft(items);
+                                    clearCart();
+                                    Alert.alert("Success", "Order saved to drafts");
+                                    navigation.goBack();
+                                } catch(e: any) {
+                                    Alert.alert("Error", e.message || "Failed to save draft");
+                                } finally {
+                                    setIsProcessing(false);
+                                }
+                            }
+                         }
+                     ])
+                }
+             }}
+             style={{ marginBottom: 12, borderColor: theme.primary }}
+             textStyle={{ color: theme.primary }}
+             loading={isProcessing}
+           />
+        )}
 
         <Button
           title="Proceed to Checkout"

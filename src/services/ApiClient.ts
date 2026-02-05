@@ -87,7 +87,9 @@ apiClient.interceptors.response.use(
       errorMsg
     );
 
-    if (error.response?.status === 401 && !originalRequest._retry) {
+    const isAuthEndpoint = originalRequest?.url?.includes("login") || originalRequest?.url?.includes("resend-otp");
+
+    if (error.response?.status === 401 && !originalRequest._retry && !isAuthEndpoint) {
       originalRequest._retry = true;
       console.log("[API] Attempting token refresh...");
 

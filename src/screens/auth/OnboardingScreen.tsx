@@ -182,8 +182,12 @@ export const OnboardingScreen = ({ navigation }: any) => {
         <View style={styles.inner}>
           <View style={styles.header}>
             <View style={styles.headerTop}>
-              {step > 1 && (
+              {step > 1 ? (
                 <TouchableOpacity onPress={() => setStep(step - 1)} style={styles.backButton}>
+                  <Ionicons name="arrow-back" size={24} color={Colors.gray800} />
+                </TouchableOpacity>
+              ) : (
+                <TouchableOpacity onPress={() => navigation.navigate("Welcome")} style={styles.backButton}>
                   <Ionicons name="arrow-back" size={24} color={Colors.gray800} />
                 </TouchableOpacity>
               )}

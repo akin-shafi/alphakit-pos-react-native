@@ -1,6 +1,7 @@
 
 import React from "react";
-import { View, Text, StyleSheet, TouchableOpacity, SafeAreaView, Image } from "react-native";
+import { View, Text, StyleSheet, TouchableOpacity, Image } from "react-native";
+import {SafeAreaView} from "react-native-safe-area-context"
 import { Ionicons } from "@expo/vector-icons";
 import { useSubscription } from "../../contexts/SubscriptionContext";
 import { Colors } from "../../constants/Colors";

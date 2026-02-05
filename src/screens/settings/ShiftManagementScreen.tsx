@@ -1,133 +1,173 @@
 
-import type React from "react"
-import { useState, useEffect } from "react"
+import React, { useState, useEffect } from "react"
 import { View, Text, StyleSheet, TouchableOpacity, FlatList, Alert, ActivityIndicator } from "react-native"
 import { Ionicons } from "@expo/vector-icons"
 import { useAuth } from "../../contexts/AuthContext"
 import { Colors, BusinessThemes } from "../../constants/Colors"
 import { Typography } from "../../constants/Typography"
 import { formatCurrency } from "../../utils/Formatter"
-
-interface Shift {
-  id: string
-  userId: number
-  userName: string
-  startTime: string
-  endTime: string | null
-  startCash: number
-  endCash: number | null
-  status: "active" | "closed"
-}
+import { Shift, ShiftService } from "../../services/ShiftService"
+import { RolePermissions } from "../../constants/Roles"
 
 export const ShiftManagementScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
-  const { user, business } = useAuth()
+  const { user, business, activeShift, checkActiveShift } = useAuth()
   const theme = business ? BusinessThemes[business.type] : BusinessThemes.default
   
+  const roleKey = (user?.role?.toLowerCase() || "cashier") as any
+  const permissions = RolePermissions[roleKey as keyof typeof RolePermissions]
+  const canManageAll = permissions?.canManageShifts || false
   const [shifts, setShifts] = useState<Shift[]>([])
   const [loading, setLoading] = useState(false)
-  const [activeShift, setActiveShift] = useState<Shift | null>(null)
+  const [processing, setProcessing] = useState(false)
 
   useEffect(() => {
-    // Simulate fetching shifts
-    fetchShifts()
-  }, [])
+    checkActiveShift()
+    if (canManageAll) {
+      fetchShifts()
+    }
+  }, [canManageAll])
 
-  const fetchShifts = () => {
+  const fetchShifts = async () => {
     setLoading(true)
-    // Mock data
-    setTimeout(() => {
-      const mockShifts: Shift[] = [
-        {
-          id: "1",
-          userId: user!.id,
-          userName: `${user!.first_name} ${user!.last_name}`,
-          startTime: new Date(Date.now() - 3600000).toISOString(),
-          endTime: null,
-          startCash: 5000,
-          endCash: null,
-          status: "active"
-        }
-      ]
-      setShifts(mockShifts)
-      setActiveShift(mockShifts.find(s => s.status === "active") || null)
+    try {
+      const data = await ShiftService.listShifts()
+      setShifts(data)
+    } catch (error) {
+      console.error("Failed to fetch shifts", error)
+      // Alert.alert("Error", "Failed to fetch shift history")
+    } finally {
       setLoading(false)
-    }, 1000)
-  }
-
-  const handleToggleShift = () => {
-    if (activeShift) {
-      Alert.alert("End Shift", "Are you sure you want to close your current shift?", [
-        { text: "Cancel", style: "cancel" },
-        { 
-          text: "End Shift", 
-          onPress: () => {
-            // Logic to end shift
-            setActiveShift(null)
-            Alert.alert("Success", "Shift closed successfully")
-          }
-        }
-      ])
-    } else {
-      Alert.prompt(
-        "Start Shift",
-        "Enter starting cash balance",
-        [
-          { text: "Cancel", style: "cancel" },
-          { 
-            text: "Start Shift", 
-            onPress: (amount) => {
-              const startAmount = parseFloat(amount || "0")
-              const newShift: Shift = {
-                id: Date.now().toString(),
-                userId: user!.id,
-                userName: `${user!.first_name} ${user!.last_name}`,
-                startTime: new Date().toISOString(),
-                endTime: null,
-                startCash: startAmount,
-                endCash: null,
-                status: "active"
-              }
-              setActiveShift(newShift)
-              setShifts([newShift, ...shifts])
-            }
-          }
-        ],
-        "plain-text",
-        "0"
-      )
     }
   }
 
-  const renderShiftItem = ({ item }: { item: Shift }) => (
-    <View style={styles.shiftCard}>
-      <View style={styles.shiftInfo}>
-        <View style={styles.shiftMain}>
-          <Text style={styles.cashierName}>{item.userName}</Text>
-          <Text style={styles.shiftTime}>
-            {new Date(item.startTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-            {item.endTime ? ` - ${new Date(item.endTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}` : " (Ongoing)"}
-          </Text>
-        </View>
-        <View style={[styles.statusBadge, { backgroundColor: item.status === "active" ? Colors.green50 : Colors.gray100 }]}>
-          <Text style={[styles.statusText, { color: item.status === "active" ? Colors.success : Colors.gray600 }]}>
-            {item.status.toUpperCase()}
-          </Text>
-        </View>
-      </View>
-      <View style={styles.shiftDetails}>
-        <View style={styles.detailItem}>
-          <Text style={styles.detailLabel}>Start Cash</Text>
-          <Text style={styles.detailValue}>{formatCurrency(item.startCash, business?.currency)}</Text>
-        </View>
-        {item.endCash !== null && (
-          <View style={styles.detailItem}>
-            <Text style={styles.detailLabel}>End Cash</Text>
-            <Text style={styles.detailValue}>{formatCurrency(item.endCash, business?.currency)}</Text>
+  const handleStartShift = () => {
+    Alert.prompt(
+      "Start Shift",
+      "Enter starting cash balance",
+      [
+        { text: "Cancel", style: "cancel" },
+        { 
+          text: "Start Shift", 
+          onPress: async (amount) => {
+            const startAmount = parseFloat(amount || "0")
+            if (isNaN(startAmount) || startAmount < 0) {
+              Alert.alert("Invalid Amount", "Please enter a valid starting cash amount")
+              return
+            }
+
+            setProcessing(true)
+            try {
+              await ShiftService.startShift(startAmount)
+              await checkActiveShift() // Update global context
+              await fetchShifts() // Refresh list
+              Alert.alert("Success", "Shift started successfully")
+            } catch (error: any) {
+              Alert.alert("Error", error.response?.data?.error || "Failed to start shift")
+            } finally {
+              setProcessing(false)
+            }
+          }
+        }
+      ],
+      "plain-text",
+      "0",
+      "numeric"
+    )
+  }
+
+  const handleEndShift = () => {
+    if (!activeShift) return
+
+    Alert.prompt(
+      "End Shift",
+      "Enter ending cash balance",
+      [
+        { text: "Cancel", style: "cancel" },
+        { 
+          text: "End Shift", 
+          onPress: async (amount) => {
+             const endAmount = parseFloat(amount || "0")
+              if (isNaN(endAmount) || endAmount < 0) {
+                Alert.alert("Invalid Amount", "Please enter a valid ending cash amount")
+                return
+              }
+
+              setProcessing(true)
+              try {
+                // Call end shift logic
+                const summary = await ShiftService.endShift(activeShift.id, endAmount)
+                
+                await checkActiveShift() 
+                await fetchShifts()
+
+                // Calculate discrepancy (simple logic for now, backend does details)
+                // Note: summary might return updated shift object, let's assume it matches ShiftSummary or Shift
+                // Based on Service implementation, it returns Shift? Wait, logic said ShiftSummary...
+                // The service says: Promise<Shift> for endShift. Wait, my service implementation returned response.data.data
+                // The backend controller returns JSON(shift) usually. 
+                // Let's assume standard Shift object returned.
+                // Summary calculation might need extra call if not included.
+                // Actually, let's just show success for now.
+                
+                Alert.alert("Shift Closed", "Shift ended successfully.")
+
+              } catch (error: any) {
+               Alert.alert("Error", error.response?.data?.error || "Failed to end shift")
+              } finally {
+                setProcessing(false)
+              }
+          }
+        }
+      ],
+      "plain-text",
+      "0",
+      "numeric"
+    )
+  }
+
+  const renderShiftItem = ({ item }: { item: Shift }) => {
+    const isCurrentUser = item.user_id === user?.id;
+    // Format date
+    const startDate = new Date(item.start_time);
+    const endDate = item.end_time ? new Date(item.end_time) : null;
+
+    return (
+      <View style={styles.shiftCard}>
+        <View style={styles.shiftInfo}>
+          <View style={styles.shiftMain}>
+            <Text style={styles.cashierName}>
+                {isCurrentUser ? "You" : `User #${item.user_id}`}
+            </Text>
+            <Text style={styles.shiftTime}>
+              {startDate.toLocaleDateString()} • {startDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+              {endDate ? ` - ${endDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}` : " (Ongoing)"}
+            </Text>
           </View>
-        )}
+          <View style={[styles.statusBadge, { backgroundColor: item.status === "open" ? Colors.green50 : Colors.gray100 }]}>
+            <Text style={[styles.statusText, { color: item.status === "open" ? Colors.success : Colors.gray600 }]}>
+              {item.status.toUpperCase()}
+            </Text>
+          </View>
+        </View>
+        <View style={styles.shiftDetails}>
+          <View style={styles.detailItem}>
+            <Text style={styles.detailLabel}>Start Cash</Text>
+            <Text style={styles.detailValue}>{formatCurrency(item.start_cash, business?.currency)}</Text>
+          </View>
+          <View style={styles.detailItem}>
+            <Text style={styles.detailLabel}>Sales</Text>
+            <Text style={styles.detailValue}>{formatCurrency(item.total_sales, business?.currency)}</Text>
+          </View>
+          {item.end_cash !== null && (
+            <View style={styles.detailItem}>
+              <Text style={styles.detailLabel}>End Cash</Text>
+              <Text style={styles.detailValue}>{formatCurrency(item.end_cash, business?.currency)}</Text>
+            </View>
+          )}
+        </View>
       </View>
-    </View>
-  )
+    )
+  }
 
   return (
     <View style={styles.container}>
@@ -135,7 +175,7 @@ export const ShiftManagementScreen: React.FC<{ navigation: any }> = ({ navigatio
         <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
           <Ionicons name="arrow-back" size={24} color={Colors.gray900} />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Shift Management</Text>
+        <Text style={styles.headerTitle}>{canManageAll ? "Shift Management" : "Work Session"}</Text>
         <View style={{ width: 40 }} />
       </View>
 
@@ -150,44 +190,58 @@ export const ShiftManagementScreen: React.FC<{ navigation: any }> = ({ navigatio
                 {activeShift ? "Active Shift" : "No Active Shift"}
               </Text>
               <Text style={styles.activeSubtitle}>
-                {activeShift ? `Started at ${new Date(activeShift.startTime).toLocaleTimeString()}` : "Ready to start work?"}
+                {activeShift ? `Started at ${new Date(activeShift.start_time).toLocaleTimeString()}` : "Ready to start work?"}
               </Text>
             </View>
           </View>
           
           <TouchableOpacity 
-            style={[styles.toggleButton, { backgroundColor: activeShift ? Colors.error : Colors.teal }]}
-            onPress={handleToggleShift}
+            style={[
+                styles.toggleButton, 
+                { backgroundColor: activeShift ? Colors.error : Colors.teal, opacity: processing ? 0.7 : 1 }
+            ]}
+            onPress={activeShift ? handleEndShift : handleStartShift}
+            disabled={processing}
           >
-            <Text style={styles.toggleButtonText}>
-              {activeShift ? "Close Shift" : "Open New Shift"}
-            </Text>
+            {processing ? (
+                 <ActivityIndicator color={Colors.white} />
+            ) : (
+                <Text style={styles.toggleButtonText}>
+                {activeShift ? "Close Shift" : "Open New Shift"}
+                </Text>
+            )}
           </TouchableOpacity>
         </View>
       </View>
 
-      <View style={styles.historyHeader}>
-        <Text style={styles.historyTitle}>Shift History</Text>
-        <TouchableOpacity>
-          <Text style={styles.seeAll}>See All</Text>
-        </TouchableOpacity>
-      </View>
+      {canManageAll && (
+        <>
+          <View style={styles.historyHeader}>
+            <Text style={styles.historyTitle}>Shift History</Text>
+            <TouchableOpacity onPress={fetchShifts}>
+              <Ionicons name="refresh" size={20} color={Colors.teal} />
+            </TouchableOpacity>
+          </View>
 
-      {loading ? (
-        <ActivityIndicator style={{ marginTop: 40 }} color={Colors.teal} />
-      ) : (
-        <FlatList
-          data={shifts}
-          keyExtractor={(item) => item.id}
-          renderItem={renderShiftItem}
-          contentContainerStyle={styles.listContent}
-          ListEmptyComponent={
-            <View style={styles.emptyState}>
-              <Ionicons name="calendar-outline" size={64} color={Colors.gray200} />
-              <Text style={styles.emptyText}>No shift history available</Text>
-            </View>
-          }
-        />
+          {loading && shifts.length === 0 ? (
+            <ActivityIndicator style={{ marginTop: 40 }} color={Colors.teal} />
+          ) : (
+            <FlatList
+              data={shifts}
+              keyExtractor={(item) => item.id.toString()}
+              renderItem={renderShiftItem}
+              contentContainerStyle={styles.listContent}
+              refreshing={loading}
+              onRefresh={fetchShifts}
+              ListEmptyComponent={
+                <View style={styles.emptyState}>
+                  <Ionicons name="calendar-outline" size={64} color={Colors.gray200} />
+                  <Text style={styles.emptyText}>No shift history available</Text>
+                </View>
+              }
+            />
+          )}
+        </>
       )}
     </View>
   )

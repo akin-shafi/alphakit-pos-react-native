@@ -35,6 +35,7 @@ export const StaffManagementScreen: React.FC<{ navigation: any }> = ({ navigatio
   const [lastName, setLastName] = useState("")
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
+  const [showPassword, setShowPassword] = useState(false)
   const [role, setRole] = useState<UserRole>(UserRole.CASHIER)
 
   useEffect(() => {
@@ -108,9 +109,10 @@ export const StaffManagementScreen: React.FC<{ navigation: any }> = ({ navigatio
       
       setModalVisible(false)
       fetchUsers()
-    } catch (e) {
+    } catch (e: any) {
       console.error("Failed to save user", e)
-      Alert.alert("Error", `Failed to ${editingUser ? "update" : "add"} staff member`)
+      const errorMsg = e.response?.data?.error || e.message || `Failed to ${editingUser ? "update" : "add"} staff member`
+      Alert.alert("Error", errorMsg)
     } finally {
       setSubmitting(false)
     }
@@ -248,13 +250,25 @@ export const StaffManagementScreen: React.FC<{ navigation: any }> = ({ navigatio
 
                 <View style={styles.inputGroup}>
                   <Text style={styles.label}>Default Password</Text>
-                  <TextInput
-                    style={styles.input}
-                    placeholder="Min 6 characters"
-                    secureTextEntry
-                    value={password}
-                    onChangeText={setPassword}
-                  />
+                  <View style={styles.passwordContainer}>
+                    <TextInput
+                      style={styles.passwordInput}
+                      placeholder="Min 6 characters"
+                      secureTextEntry={!showPassword}
+                      value={password}
+                      onChangeText={setPassword}
+                    />
+                    <TouchableOpacity 
+                      onPress={() => setShowPassword(!showPassword)}
+                      style={styles.eyeIcon}
+                    >
+                      <Ionicons 
+                        name={showPassword ? "eye-off-outline" : "eye-outline"} 
+                        size={20} 
+                        color={Colors.gray500} 
+                      />
+                    </TouchableOpacity>
+                  </View>
                 </View>
 
                 <View style={styles.inputGroup}>
@@ -449,6 +463,23 @@ const styles = StyleSheet.create({
     padding: 12,
     fontSize: Typography.base,
     color: Colors.gray900,
+  },
+  passwordContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: Colors.gray50,
+    borderWidth: 1,
+    borderColor: Colors.gray200,
+    borderRadius: 12,
+  },
+  passwordInput: {
+    flex: 1,
+    padding: 12,
+    fontSize: Typography.base,
+    color: Colors.gray900,
+  },
+  eyeIcon: {
+    padding: 12,
   },
   roleSelector: {
     flexDirection: "row",

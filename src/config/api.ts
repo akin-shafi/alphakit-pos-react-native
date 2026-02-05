@@ -2,6 +2,7 @@
 
 // const API_BASE_URL = process.env.NODE_ENV === "development" ?  "http://192.168.0.107:5050" : process.env.EXPO_PUBLIC_API_URL + "/api/v1/";
 const API_BASE_URL = "http://192.168.0.107:5050/api/v1";
+// const API_BASE_URL = "https://posfiber.onrender.com/api/v1";
 
 export const API_ENDPOINTS = {
   auth: {

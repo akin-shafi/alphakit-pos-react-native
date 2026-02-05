@@ -11,7 +11,7 @@ import { Input } from "../../components/Input"
 import { Button } from "../../components/Button"
 import { ProductDrawer } from "../../components/ProductDrawer"
 import { AuthService } from "../../services/AuthService"
-import { Colors } from "../../constants/Colors"
+import { Colors, BusinessThemes } from "../../constants/Colors"
 import { Typography } from "../../constants/Typography"
 import { formatCurrency } from "../../utils/Formatter"
 import type { Product } from "../../types"
@@ -104,6 +104,33 @@ export const InventoryScreen: React.FC<{ navigation: any; route: any }> = ({ nav
       Dairy: "#831843",
     }
     return colorMap[catName] || Colors.gray700
+  }
+
+  if (!canManage) {
+    const theme = business ? BusinessThemes[business.type] : BusinessThemes.default
+    return (
+      <View style={styles.container}>
+        <View style={[styles.deniedHeader, { backgroundColor: theme.primary }]}>
+          <TouchableOpacity onPress={() => navigation.navigate("Dashboard")} style={styles.backButton}>
+            <Ionicons name="arrow-back" size={24} color={Colors.white} />
+          </TouchableOpacity>
+          <Text style={styles.headerTitle}>Inventory</Text>
+          <View style={styles.placeholder} />
+        </View>
+
+        <View style={styles.noAccess}>
+          <Ionicons name="lock-closed" size={64} color={Colors.gray300} />
+          <Text style={styles.noAccessTitle}>Access Denied</Text>
+          <Text style={styles.noAccessText}>You don't have permission to manage inventory</Text>
+          <Button 
+            title="Go to Dashboard" 
+            onPress={() => navigation.navigate("Dashboard")}
+            style={{ marginTop: 24, paddingHorizontal: 32 }}
+            variant="primary"
+          />
+        </View>
+      </View>
+    )
   }
 
   return (
@@ -400,5 +427,43 @@ const styles = StyleSheet.create({
     marginBottom: 24,
     lineHeight: 22,
   },
-
+  deniedHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingTop: 48,
+    paddingBottom: 16,
+    paddingHorizontal: 16,
+  },
+  headerTitle: {
+    fontSize: Typography.xl,
+    fontWeight: Typography.bold,
+    color: Colors.white,
+    flex: 1,
+    textAlign: "center",
+  },
+  backButton: {
+    padding: 8,
+  },
+  placeholder: {
+    width: 40,
+  },
+  noAccess: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    padding: 24,
+  },
+  noAccessTitle: {
+    fontSize: Typography["2xl"],
+    fontWeight: Typography.bold,
+    color: Colors.gray900,
+    marginTop: 24,
+    marginBottom: 8,
+  },
+  noAccessText: {
+    fontSize: Typography.base,
+    color: Colors.gray500,
+    textAlign: 'center',
+  },
 })

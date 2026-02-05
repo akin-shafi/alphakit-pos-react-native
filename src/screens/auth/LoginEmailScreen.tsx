@@ -54,13 +54,13 @@ export const LoginEmailScreen: React.FC<{ navigation: any }> = ({ navigation }) 
       await login(email.trim(), password)
       // Navigation happens automatically in AppNavigation based on isAuthenticated
     } catch (err: any) {
-      const msg = err?.message || "Login failed"
+      const msg = err?.response?.data?.error || err?.message || "Login failed"
       if (msg.toLowerCase().includes("verify") || msg.toLowerCase().includes("verified")) {
           // If 401 says please verify, we redirect
           navigation.navigate("OTPVerification", { email: email.trim() })
           return
       }
-      setError(msg || "Login failed. Please check your credentials.")
+      setError(msg)
     } finally {
       setLoading(false)
     }
@@ -87,7 +87,7 @@ export const LoginEmailScreen: React.FC<{ navigation: any }> = ({ navigation }) 
       <TouchableWithoutFeedback onPress={dismissKeyboard}>
         <View style={styles.innerContainer}>
           <View style={styles.topBar}>
-            <TouchableOpacity style={styles.backButton} onPress={() => navigation.goBack()}>
+            <TouchableOpacity style={styles.backButton} onPress={() => navigation.navigate("Welcome")}>
               <Ionicons name="arrow-back" size={24} color={Colors.gray900} />
             </TouchableOpacity>
           </View>

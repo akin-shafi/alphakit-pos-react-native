@@ -4,6 +4,7 @@ import { NavigationContainer } from "@react-navigation/native"
 import { AuthProvider } from "./src/contexts/AuthContext"
 import { CartProvider } from "./src/contexts/CartContext"
 import { InventoryProvider } from "./src/contexts/InventoryContext"
+import { SettingsProvider } from "./src/contexts/SettingsContext"
 import { PaymentConfigProvider } from "./src/contexts/PaymentConfigContext"
 import { SubscriptionProvider } from "./src/contexts/SubscriptionContext"
 import { AppNavigation } from "./src/navigation/AppNavigation"
@@ -13,7 +14,8 @@ export default function App() {
   return (
     <SafeAreaProvider>
       <AuthProvider>
-        <PaymentConfigProvider>
+        <SettingsProvider>
+          <PaymentConfigProvider>
           <CartProvider>
             <InventoryProvider>
               <SubscriptionProvider>
@@ -26,7 +28,8 @@ export default function App() {
               <StatusBar style="auto" />
             </InventoryProvider>
           </CartProvider>
-        </PaymentConfigProvider>
+          </PaymentConfigProvider>
+        </SettingsProvider>
       </AuthProvider>
     </SafeAreaProvider>
   )

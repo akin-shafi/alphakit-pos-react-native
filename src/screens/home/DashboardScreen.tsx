@@ -88,6 +88,14 @@ export const DashboardScreen: React.FC<{ navigation: any }> = ({ navigation }) =
       color: "#EA580C",
     },
     {
+      id: "shifts",
+      name: "Shift Management",
+      icon: "time",
+      route: "ShiftManagement",
+      permissionKey: "canManageShifts",
+      color: "#F59E0B",
+    },
+    {
       id: "settings",
       name: "Settings",
       icon: "settings",
@@ -104,6 +112,7 @@ export const DashboardScreen: React.FC<{ navigation: any }> = ({ navigation }) =
       permissionKey: "canManageSettings",
       color: "#DB2777",
     },
+    
   ]
 
   const allowedModules = modules.filter(m => permissions && permissions[m.permissionKey])
@@ -147,24 +156,6 @@ export const DashboardScreen: React.FC<{ navigation: any }> = ({ navigation }) =
             <Ionicons name="chevron-forward" size={20} color={Colors.white} opacity={0.5} />
           </View>
 
-          <Text style={styles.sectionTitle}>Main Modules</Text>
-          
-          <View style={styles.grid}>
-            {allowedModules.map((module) => (
-              <TouchableOpacity
-                key={module.id}
-                style={styles.moduleCard}
-                onPress={() => handleModulePress(module)}
-                activeOpacity={0.7}
-              >
-                <View style={[styles.iconContainer, { backgroundColor: `${module.color}15` }]}>
-                  <Ionicons name={module.icon as any} size={32} color={module.color} />
-                </View>
-                <Text style={styles.moduleName}>{module.name}</Text>
-              </TouchableOpacity>
-            ))}
-          </View>
-
           {/* Quick Actions or Summary could go here */}
           {permissions.canViewReports && (
             <View style={styles.quickInfoContainer}>
@@ -188,6 +179,26 @@ export const DashboardScreen: React.FC<{ navigation: any }> = ({ navigation }) =
               </View>
             </View>
           )}
+
+          <Text style={styles.sectionTitle}>Main Modules</Text>
+          
+          <View style={styles.grid}>
+            {allowedModules.map((module) => (
+              <TouchableOpacity
+                key={module.id}
+                style={styles.moduleCard}
+                onPress={() => handleModulePress(module)}
+                activeOpacity={0.7}
+              >
+                <View style={[styles.iconContainer, { backgroundColor: `${module.color}15` }]}>
+                  <Ionicons name={module.icon as any} size={32} color={module.color} />
+                </View>
+                <Text style={styles.moduleName}>{module.name}</Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+
+          
         </ScrollView>
       </View>
     </SafeAreaView>

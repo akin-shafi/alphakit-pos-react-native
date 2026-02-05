@@ -1,7 +1,6 @@
 
-
-import type React from "react"
-import { View, Text, StyleSheet, FlatList, TouchableOpacity, ActivityIndicator, RefreshControl } from "react-native"
+import React, { useEffect } from "react"
+import { View, Text, StyleSheet, FlatList, TouchableOpacity, ActivityIndicator, RefreshControl, Alert } from "react-native"
 import { Ionicons } from "@expo/vector-icons"
 import { useAuth } from "../../contexts/AuthContext"
 import { useCart } from "../../contexts/CartContext"
@@ -12,10 +11,16 @@ import { Colors } from "../../constants/Colors"
 import { Typography } from "../../constants/Typography"
 import { formatCurrency } from "../../utils/Formatter"
 import { SubscriptionBanner } from "../../components/SubscriptionBanner"
+import { useSettings } from "../../contexts/SettingsContext"
 
 export const POSHomeScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
-  const { business, user, logout } = useAuth()
+  const { business, user, logout, activeShift, checkActiveShift } = useAuth()
   const { items, addItem } = useCart()
+
+  useEffect(() => {
+    checkActiveShift()
+  }, [])
+  const { enableDrafts } = useSettings()
   const { categories, getFilteredProducts, searchQuery, setSearchQuery, selectedCategory, setSelectedCategory, loading, refreshData } =
     useInventory()
 
@@ -35,6 +40,24 @@ export const POSHomeScreen: React.FC<{ navigation: any }> = ({ navigation }) => 
     return colorMap[catName] || Colors.productOrange
   }
 
+  const handleActionWithShiftCheck = (action: () => void) => {
+    if (!activeShift) {
+      Alert.alert(
+        "No Active Shift",
+        "You must start a shift before performing sales operations.",
+        [
+          { text: "Cancel", style: "cancel" },
+          { 
+            text: "Start Shift", 
+            onPress: () => navigation.navigate("ShiftManagement")
+          }
+        ]
+      )
+      return
+    }
+    action()
+  }
+
   return (
     <View style={styles.container}>
       {/* Header */}
@@ -50,6 +73,11 @@ export const POSHomeScreen: React.FC<{ navigation: any }> = ({ navigation }) => 
             <TouchableOpacity onPress={() => navigation.navigate("Dashboard")} style={styles.logoutButton}>
               <Ionicons name="apps" size={24} color={Colors.teal} />
             </TouchableOpacity>
+            {enableDrafts && (
+                <TouchableOpacity onPress={() => navigation.navigate("DraftOrders")} style={styles.logoutButton}>
+                    <Ionicons name="documents-outline" size={24} color={Colors.teal} />
+                </TouchableOpacity>
+            )}
             <TouchableOpacity onPress={logout} style={styles.logoutButton}>
               <Ionicons name="log-out-outline" size={24} color={Colors.error} />
             </TouchableOpacity>
@@ -106,7 +134,7 @@ export const POSHomeScreen: React.FC<{ navigation: any }> = ({ navigation }) => 
               ]} 
               onPress={() => {
                 if (!isOutOfStock) {
-                  addItem(item)
+                  handleActionWithShiftCheck(() => addItem(item))
                 }
               }}
               disabled={isOutOfStock}
@@ -174,7 +202,7 @@ export const POSHomeScreen: React.FC<{ navigation: any }> = ({ navigation }) => 
 
       {/* Floating Cart Button */}
       {cartItemCount > 0 && (
-        <TouchableOpacity style={styles.cartButton} onPress={() => navigation.navigate("Cart")}>
+        <TouchableOpacity style={styles.cartButton} onPress={() => handleActionWithShiftCheck(() => navigation.navigate("Cart"))}>
           <Ionicons name="cart" size={28} color={Colors.white} />
           <View style={styles.cartBadge}>
             <Text style={styles.cartBadgeText}>{cartItemCount}</Text>

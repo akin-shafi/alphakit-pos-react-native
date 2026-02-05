@@ -28,13 +28,21 @@ export const ReportsScreen: React.FC<{ navigation: any }> = ({ navigation }) => 
   const theme = business ? BusinessThemes[business.type] : BusinessThemes.default
   
   const roleKey = (user?.role?.toLowerCase() || "") as any
-  const canView = RolePermissions[roleKey as keyof typeof RolePermissions]?.canViewReports || false
+  const permissions = RolePermissions[roleKey as keyof typeof RolePermissions]
+  const canView = permissions?.canViewReports || false
+  const isCashier = user?.role?.toLowerCase() === "cashier"
+
+  useEffect(() => {
+    if (isCashier) {
+      setSelectedPeriod("today")
+    }
+  }, [isCashier])
 
   useEffect(() => {
     if (canView) {
       fetchData()
     }
-  }, [selectedPeriod])
+  }, [selectedPeriod, isCashier])
 
   const fetchData = async () => {
     setLoading(true)
@@ -94,8 +102,9 @@ export const ReportsScreen: React.FC<{ navigation: any }> = ({ navigation }) => 
 
   // Filter transactions
   const filteredTransactions = transactions.filter(t => {
-    if (selectedFilter === "all") return true
-    return t.paymentMethod?.toLowerCase() === selectedFilter
+    const matchesFilter = selectedFilter === "all" || t.paymentMethod?.toLowerCase() === selectedFilter
+    const matchesUser = !isCashier || t.userId === user?.id?.toString()
+    return matchesFilter && matchesUser
   })
 
   if (!canView) {
@@ -143,20 +152,25 @@ export const ReportsScreen: React.FC<{ navigation: any }> = ({ navigation }) => 
         >
           <Text style={[styles.periodTabText, selectedPeriod === "today" && styles.periodTabTextActive]}>Today</Text>
         </TouchableOpacity>
-        <TouchableOpacity
-          style={[styles.periodTab, selectedPeriod === "week" && styles.periodTabActive]}
-          onPress={() => setSelectedPeriod("week")}
-        >
-          <Text style={[styles.periodTabText, selectedPeriod === "week" && styles.periodTabTextActive]}>This Week</Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={[styles.periodTab, selectedPeriod === "month" && styles.periodTabActive]}
-          onPress={() => setSelectedPeriod("month")}
-        >
-          <Text style={[styles.periodTabText, selectedPeriod === "month" && styles.periodTabTextActive]}>
-            This Month
-          </Text>
-        </TouchableOpacity>
+        
+        {!isCashier && (
+          <>
+            <TouchableOpacity
+              style={[styles.periodTab, selectedPeriod === "week" && styles.periodTabActive]}
+              onPress={() => setSelectedPeriod("week")}
+            >
+              <Text style={[styles.periodTabText, selectedPeriod === "week" && styles.periodTabTextActive]}>This Week</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.periodTab, selectedPeriod === "month" && styles.periodTabActive]}
+              onPress={() => setSelectedPeriod("month")}
+            >
+              <Text style={[styles.periodTabText, selectedPeriod === "month" && styles.periodTabTextActive]}>
+                This Month
+              </Text>
+            </TouchableOpacity>
+          </>
+        )}
       </View>
 
       <ScrollView 
@@ -172,75 +186,82 @@ export const ReportsScreen: React.FC<{ navigation: any }> = ({ navigation }) => 
           </View>
         ) : (
           <>
-            <View style={styles.metricsGrid}>
-              <TouchableOpacity 
-                style={[styles.metricCard, selectedFilter === "all" && { borderColor: theme.primary, borderWidth: 2 }]}
-                onPress={() => setSelectedFilter("all")}
-              >
-                <View style={[styles.metricIcon, { backgroundColor: Colors.green50 }]}>
-                  <Ionicons name="trending-up" size={24} color={Colors.success} />
-                </View>
-                <Text style={styles.metricLabel}>Total Sales</Text>
-                <Text style={styles.metricValue}>{formatCurrency(reportData?.total_sales || 0, business?.currency)}</Text>
-                <Text style={styles.metricSubtext}>{(reportData?.total_transactions || 0)} transactions</Text>
-              </TouchableOpacity>
+            {!isCashier && (
+              <View style={styles.metricsGrid}>
+                <TouchableOpacity 
+                  style={[styles.metricCard, selectedFilter === "all" && { borderColor: theme.primary, borderWidth: 2 }]}
+                  onPress={() => setSelectedFilter("all")}
+                >
+                  <View style={[styles.metricIcon, { backgroundColor: Colors.green50 }]}>
+                    <Ionicons name="trending-up" size={24} color={Colors.success} />
+                  </View>
+                  <Text style={styles.metricLabel}>Total Sales</Text>
+                  <Text style={styles.metricValue}>{formatCurrency(reportData?.total_sales || 0, business?.currency)}</Text>
+                  <Text style={styles.metricSubtext}>{(reportData?.total_transactions || 0)} transactions</Text>
+                </TouchableOpacity>
 
-              <TouchableOpacity 
-                style={[styles.metricCard, selectedFilter === "all" && { borderColor: theme.primary, borderWidth: 2, opacity: 0.7 }]}
-                 // Just average, clicking it resets to all? Or maybe does nothing. Let's make it reset to all.
-                onPress={() => setSelectedFilter("all")}
-              >
-                <View style={[styles.metricIcon, { backgroundColor: Colors.blue50 }]}>
-                  <Ionicons name="wallet" size={24} color={Colors.info} />
-                </View>
-                <Text style={styles.metricLabel}>Avg. Sale</Text>
-                <Text style={styles.metricValue}>{formatCurrency(reportData?.average_sale || 0, business?.currency)}</Text>
-              </TouchableOpacity>
+                <TouchableOpacity 
+                  style={[styles.metricCard, selectedFilter === "all" && { borderColor: theme.primary, borderWidth: 2, opacity: 0.7 }]}
+                   // Just average, clicking it resets to all? Or maybe does nothing. Let's make it reset to all.
+                  onPress={() => setSelectedFilter("all")}
+                >
+                  <View style={[styles.metricIcon, { backgroundColor: Colors.blue50 }]}>
+                    <Ionicons name="wallet" size={24} color={Colors.info} />
+                  </View>
+                  <Text style={styles.metricLabel}>Avg. Sale</Text>
+                  <Text style={styles.metricValue}>{formatCurrency(reportData?.average_sale || 0, business?.currency)}</Text>
+                </TouchableOpacity>
 
-              <TouchableOpacity 
-                style={[styles.metricCard, selectedFilter === "cash" && { borderColor: theme.primary, borderWidth: 2 }]}
-                onPress={() => setSelectedFilter("cash")}
-              >
-                <View style={[styles.metricIcon, { backgroundColor: Colors.purple50 }]}>
-                  <Ionicons name="cash" size={24} color={Colors.purple} />
-                </View>
-                <Text style={styles.metricLabel}>Cash Sales</Text>
-                <Text style={styles.metricValue}>{formatCurrency(reportData?.cash_sales || 0, business?.currency)}</Text>
-              </TouchableOpacity>
+                <TouchableOpacity 
+                  style={[styles.metricCard, selectedFilter === "cash" && { borderColor: theme.primary, borderWidth: 2 }]}
+                  onPress={() => setSelectedFilter("cash")}
+                >
+                  <View style={[styles.metricIcon, { backgroundColor: Colors.purple50 }]}>
+                    <Ionicons name="cash" size={24} color={Colors.purple} />
+                  </View>
+                  <Text style={styles.metricLabel}>Cash Sales</Text>
+                  <Text style={styles.metricValue}>{formatCurrency(reportData?.cash_sales || 0, business?.currency)}</Text>
+                </TouchableOpacity>
 
-              <TouchableOpacity 
-                style={[styles.metricCard, selectedFilter === "card" && { borderColor: theme.primary, borderWidth: 2 }]}
-                onPress={() => setSelectedFilter("card")}
-              >
-                <View style={[styles.metricIcon, { backgroundColor: Colors.orange50 }]}>
-                  <Ionicons name="card" size={24} color={Colors.orange} />
-                </View>
-                <Text style={styles.metricLabel}>Card Sales</Text>
-                <Text style={styles.metricValue}>{formatCurrency(reportData?.card_sales || 0, business?.currency)}</Text>
-              </TouchableOpacity>
-            </View>
+                <TouchableOpacity 
+                  style={[styles.metricCard, selectedFilter === "card" && { borderColor: theme.primary, borderWidth: 2 }]}
+                  onPress={() => setSelectedFilter("card")}
+                >
+                  <View style={[styles.metricIcon, { backgroundColor: Colors.orange50 }]}>
+                    <Ionicons name="card" size={24} color={Colors.orange} />
+                  </View>
+                  <Text style={styles.metricLabel}>Card Sales</Text>
+                  <Text style={styles.metricValue}>{formatCurrency(reportData?.card_sales || 0, business?.currency)}</Text>
+                </TouchableOpacity>
+              </View>
+            )}
 
             <View style={styles.transactionsCard}>
-              <TouchableOpacity style={styles.generateButton} onPress={handleGenerateReport}>
-                <Ionicons name="document-text" size={20} color={Colors.white} />
-                <Text style={styles.generateButtonText}>Generate Detailed PDF</Text>
-              </TouchableOpacity>
+              {!isCashier && (
+                <TouchableOpacity style={styles.generateButton} onPress={handleGenerateReport}>
+                  <Ionicons name="document-text" size={20} color={Colors.white} />
+                  <Text style={styles.generateButtonText}>Generate Detailed PDF</Text>
+                </TouchableOpacity>
+              )}
 
-              <Text style={styles.transactionsTitle}>Summary</Text>
-              
-              <View style={styles.summaryTable}>
-                 {/* Keep existing summary rows if needed, or replace with logic. Keeping transfer sales as a summary value. */}
-                <View style={styles.summaryRow}>
-                  <Text style={styles.summaryLabel}>Transfer Sales</Text>
-                  <Text style={styles.summaryValue}>{formatCurrency(reportData?.transfer_sales || 0, business?.currency)}</Text>
-                </View>
-                 {"mobile_money_sales" in (reportData || {}) && (
-                  <View style={styles.summaryRow}>
-                    <Text style={styles.summaryLabel}>Mobile Money</Text>
-                    <Text style={styles.summaryValue}>{formatCurrency((reportData as SalesReport)?.mobile_money_sales || 0, business?.currency)}</Text>
+              {!isCashier && (
+                <>
+                  <Text style={styles.transactionsTitle}>Summary</Text>
+                  
+                  <View style={styles.summaryTable}>
+                    <View style={styles.summaryRow}>
+                      <Text style={styles.summaryLabel}>Transfer Sales</Text>
+                      <Text style={styles.summaryValue}>{formatCurrency(reportData?.transfer_sales || 0, business?.currency)}</Text>
+                    </View>
+                    {"mobile_money_sales" in (reportData || {}) && (
+                      <View style={styles.summaryRow}>
+                        <Text style={styles.summaryLabel}>Mobile Money</Text>
+                        <Text style={styles.summaryValue}>{formatCurrency((reportData as SalesReport)?.mobile_money_sales || 0, business?.currency)}</Text>
+                      </View>
+                    )}
                   </View>
-                )}
-              </View>
+                </>
+              )}
               
               <Text style={[styles.transactionsTitle, { marginTop: 24 }]}>Recent Transactions ({filteredTransactions.length})</Text>
 

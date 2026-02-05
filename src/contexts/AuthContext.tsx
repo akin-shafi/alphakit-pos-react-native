@@ -4,6 +4,7 @@ import React, { createContext, useContext, useEffect, useState } from "react"
 import AsyncStorage from "@react-native-async-storage/async-storage"
 import { DeviceEventEmitter, Alert } from "react-native"
 import { AuthService } from "../services/AuthService"
+import { Shift, ShiftService } from "../services/ShiftService"
 import { SESSION_EXPIRED_EVENT } from "../services/ApiClient"
 import type { User, Business, Tenant, RegisterBusinessPayload } from "../types"
 
@@ -21,6 +22,8 @@ interface AuthContextType {
   registerBusiness: (payload: RegisterBusinessPayload) => Promise<void>
   setBusiness: (business: Business) => Promise<void>
   resetInactivityTimer: () => void
+  activeShift: Shift | null
+  checkActiveShift: () => Promise<void>
 }
 
 
@@ -38,6 +41,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [lastLoggedUser, setLastLoggedUser] = useState<{ name: string; email: string } | null>(null)
   const [loading, setLoading] = useState(false)
   const [inactivityTimer, setInactivityTimer] = useState<NodeJS.Timeout | null>(null)
+  const [activeShift, setActiveShift] = useState<Shift | null>(null)
 
   const INACTIVITY_TIMEOUT = 30 * 60 * 1000 // 30 minutes
 
@@ -71,6 +75,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       
       if (userStr) {
         startInactivityTimer()
+        // Check for active shift in background
+        checkActiveShift()
       }
     } catch (e) {
       console.warn("Failed to restore session", e)
@@ -88,6 +94,16 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const resetInactivityTimer = () => {
     if (user) {
       startInactivityTimer()
+    }
+  }
+
+  const checkActiveShift = async () => {
+    try {
+      const shift = await ShiftService.getActiveShift()
+      setActiveShift(shift)
+    } catch (e) {
+      console.log("Failed to check active shift", e)
+      // Don't fail the whole app for this
     }
   }
 
@@ -171,6 +187,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     await AsyncStorage.multiSet(storageData)
     startInactivityTimer()
+    await checkActiveShift()
   }
 
   const setBusinessData = async (newBusiness: Business) => {
@@ -190,6 +207,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setUser(null)
       setTenant(null)
       setBusiness(null)
+      setActiveShift(null)
       setLoading(false)
     }
   }
@@ -202,13 +220,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setUser(null)
     setTenant(null)
     setBusiness(null)
+    setActiveShift(null)
     
     // Show alert to user
-    Alert.alert(
-      "Session Expired",
-      "Your session has expired. Please log in again.",
-      [{ text: "OK" }]
-    )
+    // Alert.alert(
+    //   "Session Expired",
+    //   "Your session has expired. Please log in again.",
+    //   [{ text: "OK" }]
+    // )
   }
 
   return (
@@ -226,6 +245,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         registerBusiness,
         setBusiness: setBusinessData,
         resetInactivityTimer,
+        activeShift,
+        checkActiveShift,
       }}
     >
       {children}

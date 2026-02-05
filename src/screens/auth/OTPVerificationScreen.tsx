@@ -53,10 +53,10 @@ export const OTPVerificationScreen = () => {
 
   const handleResend = async () => {
     try {
-      // await AuthService.resendOTP(email) 
+      await AuthService.resendOTP(email) 
       setToast({ message: "Code resent via email", type: "success" })
-    } catch (err) {
-      setToast({ message: "Failed to resend code", type: "error" })
+    } catch (err: any) {
+      setToast({ message: err.response?.data?.error || "Failed to resend code", type: "error" })
     }
   }
 

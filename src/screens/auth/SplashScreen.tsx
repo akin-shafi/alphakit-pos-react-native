@@ -17,7 +17,7 @@ export const SplashScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
       // We don't need to manually navigate here if AppNavigation renders POS stack.
       // But if we want to ensure we're on POSHome:
       if (!isAuthenticated) {
-        navigation.replace("Welcome")
+        navigation.replace("Login")
       }
     }, 2000)
   }, [isAuthenticated, navigation])

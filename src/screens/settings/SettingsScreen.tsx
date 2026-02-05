@@ -1,7 +1,9 @@
 import { useState } from "react";
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert, ActivityIndicator } from "react-native"
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert, ActivityIndicator, Switch } from "react-native"
 import { Ionicons } from "@expo/vector-icons"
 import { useAuth } from "../../contexts/AuthContext"
+import { useSettings } from "../../contexts/SettingsContext"
+
 import { RolePermissions, UserRole } from "../../constants/Roles"
 import { Colors, BusinessThemes } from "../../constants/Colors"
 import { Typography } from "../../constants/Typography"
@@ -9,20 +11,18 @@ import { AuthService } from "../../services/AuthService"
 
 export const SettingsScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
   const { business, user, logout, setBusiness } = useAuth()
+  const { enableTables, enableDrafts, toggleTables, toggleDrafts, taxRate } = useSettings()
   const [loading, setLoading] = useState(false)
+
+
 
   const theme = business ? BusinessThemes[business.type] : BusinessThemes.default
   const role =
   user?.role?.toLowerCase() as UserRole | undefined;
 
   const permissions = role ? RolePermissions[role] : null;
-
-  console.log("business: ", business)
-  console.log("business type: ", business.type)
-  console.log("BusinessThemes: ", BusinessThemes[business.type])
-  console.log("theme: ", theme)
-
-
+  const isManager = role === UserRole.OWNER || role === UserRole.ADMIN || role === UserRole.MANAGER
+  const isCashier = role === UserRole.CASHIER
 
   const handleLogout = () => {
     Alert.alert("Logout", "Are you sure you want to logout?", [
@@ -87,8 +87,8 @@ export const SettingsScreen: React.FC<{ navigation: any }> = ({ navigation }) =>
           <View>
             <Text style={styles.businessName}>{business?.name || "Fiber"}</Text>
             <Text style={styles.businessInfo}>
-              {business?.type.charAt(0).toUpperCase() + business?.type.slice(1)} • Business Id:{" "}
-              {business?.id || "2"}
+              {business?.type ? (business.type.charAt(0).toUpperCase() + business.type.slice(1)) : "Business"} 
+              {/* • Business Id:{" "} {business?.id || "2"} */}
             </Text>
           </View>
           <TouchableOpacity 
@@ -125,7 +125,7 @@ export const SettingsScreen: React.FC<{ navigation: any }> = ({ navigation }) =>
                 <View style={styles.infoContent}>
                   <Text style={styles.infoLabel}>{business?.name || "Standford"}</Text>
                   <Text style={styles.infoSubtitle}>
-                    {business?.type.charAt(0).toUpperCase() + business?.type.slice(1)}
+                    {business?.type ? (business.type.charAt(0).toUpperCase() + business.type.slice(1)) : "Business"}
                   </Text>
                 </View>
               </View>
@@ -140,23 +140,27 @@ export const SettingsScreen: React.FC<{ navigation: any }> = ({ navigation }) =>
                 </View>
               </View>
 
-              <MenuButton
-                icon="cash"
-                label="Default Currency"
-                subtitle={`Current: ${business?.currency || "NGN"}`}
-                onPress={handleChangeCurrency}
-                iconColor={theme.primary}
-                iconBg={theme.primaryLight}
-                rightText={business?.currency}
-              />
-              <MenuButton
-                icon="card"
-                label="Subscription"
-                subtitle="Manage plans & billing"
-                onPress={() => navigation.navigate("SubscriptionPlans")}
-                iconColor={theme.primary}
-                iconBg={theme.primaryLight}
-              />
+              {isManager && (
+                <>
+                  <MenuButton
+                    icon="cash"
+                    label="Default Currency"
+                    subtitle={`Current: ${business?.currency || "NGN"}`}
+                    onPress={handleChangeCurrency}
+                    iconColor={theme.primary}
+                    iconBg={theme.primaryLight}
+                    rightText={business?.currency}
+                  />
+                  <MenuButton
+                    icon="card"
+                    label="Subscription"
+                    subtitle="Manage plans & billing"
+                    onPress={() => navigation.navigate("SubscriptionPlans")}
+                    iconColor={theme.primary}
+                    iconBg={theme.primaryLight}
+                  />
+                </>
+              )}
             </View>
           </View>
         )}
@@ -165,6 +169,57 @@ export const SettingsScreen: React.FC<{ navigation: any }> = ({ navigation }) =>
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>POS CONFIGURATION</Text>
             <View style={styles.card}>
+              {isManager && (
+                <>
+                  <View style={styles.menuItem}>
+                    <View style={styles.menuLeft}>
+                        <View style={[styles.iconContainer, { backgroundColor: theme.primaryLight }]}>
+                          <Ionicons name="layers" size={20} color={theme.primary} />
+                        </View>
+                        <View style={styles.menuContent}>
+                          <Text style={styles.menuLabel}>Draft & Held Orders</Text>
+                          <Text style={styles.menuSubtitle}>Allow saving orders for later</Text>
+                        </View>
+                    </View>
+                    <Switch
+                        value={enableDrafts}
+                        onValueChange={toggleDrafts}
+                        trackColor={{ false: Colors.gray200, true: theme.primary }}
+                        thumbColor={Colors.white}
+                    />
+                  </View>
+
+                  <View style={styles.menuItem}>
+                    <View style={styles.menuLeft}>
+                        <View style={[styles.iconContainer, { backgroundColor: theme.primaryLight }]}>
+                          <Ionicons name="restaurant" size={20} color={theme.primary} />
+                        </View>
+                        <View style={styles.menuContent}>
+                          <Text style={styles.menuLabel}>Table Management</Text>
+                          <Text style={styles.menuSubtitle}>Assign orders to tables</Text>
+                        </View>
+                    </View>
+                    <Switch
+                        value={enableTables}
+                        onValueChange={toggleTables}
+                        trackColor={{ false: Colors.gray200, true: theme.primary }}
+                        thumbColor={Colors.white}
+                    />
+                  </View>
+
+                  {enableTables && (
+                    <MenuButton
+                      icon="grid"
+                      label="Manage Tables"
+                      subtitle="Configure floor plan & tables"
+                      onPress={() => navigation.navigate("TableManagement")}
+                      iconColor={theme.primary}
+                      iconBg={theme.primaryLight}
+                    />
+                  )}
+                </>
+              )}
+
               <MenuButton
                 icon="print"
                 label="Printer Setup"
@@ -181,15 +236,17 @@ export const SettingsScreen: React.FC<{ navigation: any }> = ({ navigation }) =>
                 iconColor={theme.primary}
                 iconBg={theme.primaryLight}
               />
-              <MenuButton
-                icon="calculator"
-                label="Tax Settings"
-                subtitle="Manage tax rates"
-                rightText="0%"
-                onPress={() => {}}
-                iconColor={theme.primary}
-                iconBg={theme.primaryLight}
-              />
+              {isManager && (
+                <MenuButton
+                  icon="calculator"
+                  label="Tax Settings"
+                  subtitle="Manage tax rates"
+                  rightText={`${taxRate}%`}
+                  onPress={() => navigation.navigate("TaxSettings")}
+                  iconColor={theme.primary}
+                  iconBg={theme.primaryLight}
+                />
+              )}
             </View>
           </View>
         )}
