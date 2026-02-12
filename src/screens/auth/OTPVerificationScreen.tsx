@@ -42,6 +42,15 @@ export const OTPVerificationScreen = () => {
       const response = await AuthService.verifyEmail(email, codeToVerify)
       await loginSuccess(response)
       setToast({ message: "Email verified successfully!", type: "success" })
+      
+      if (response.business?.subscription_status === 'PENDING_PAYMENT') {
+        // We'll let AppNavigation handle this by checking status if possible, 
+        // but for immediate response we can replace navigation
+        navigation.reset({
+          index: 0,
+          routes: [{ name: 'SubscriptionCheckout' as any }],
+        });
+      }
     } catch (err: any) {
       console.error(err)
       setError(err.response?.data?.error || "Invalid code. Please try again.")

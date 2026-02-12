@@ -3,14 +3,14 @@ import { View, Text, StyleSheet, FlatList, TouchableOpacity, Alert, Modal, TextI
 import { Ionicons } from "@expo/vector-icons"
 import { useAuth } from "../../contexts/AuthContext"
 import { TableService, Table } from "../../services/TableService"
-import { Colors, BusinessThemes } from "../../constants/Colors"
+import { Colors, BusinessThemes, getBusinessTheme } from "../../constants/Colors"
 import { Typography } from "../../constants/Typography"
 import { Button } from "../../components/Button"
 import { Card } from "../../components/Card"
 
 export const TableManagementScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
   const { business } = useAuth()
-  const theme = business ? BusinessThemes[business.type] : BusinessThemes.default
+  const theme = getBusinessTheme(business?.type)
   
   const [tables, setTables] = useState<Table[]>([])
   const [loading, setLoading] = useState(false)

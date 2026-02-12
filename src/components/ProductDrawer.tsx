@@ -28,9 +28,10 @@ interface ProductDrawerProps {
   onDelete?: (productId: string) => Promise<void>
   product?: Product | null
   mode: "add" | "edit"
+  onManageRecipe?: (product: Product) => void
 }
 
-export const ProductDrawer: React.FC<ProductDrawerProps> = ({ visible, onClose, onSave, onDelete, product, mode }) => {
+export const ProductDrawer: React.FC<ProductDrawerProps> = ({ visible, onClose, onSave, onDelete, product, mode, onManageRecipe }) => {
   const { categories } = useInventory()
   const [saving, setSaving] = useState(false)
   const [deleting, setDeleting] = useState(false)
@@ -240,6 +241,17 @@ export const ProductDrawer: React.FC<ProductDrawerProps> = ({ visible, onClose, 
           </ScrollView>
 
           <View style={styles.footer}>
+            {mode === "edit" && onManageRecipe && product && (
+              <Button
+                title="Manage Recipe (BOM)"
+                onPress={() => onManageRecipe(product)}
+                fullWidth
+                variant="outline"
+                size="lg"
+                style={{ marginBottom: 12 }}
+                primaryColor={Colors.teal}
+              />
+            )}
             <Button
               title={mode === "add" ? "Add Product" : "Update Product"}
               onPress={handleSave}

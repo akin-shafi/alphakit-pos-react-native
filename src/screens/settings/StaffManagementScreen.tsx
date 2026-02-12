@@ -16,6 +16,7 @@ import {
 } from "react-native"
 import { Ionicons } from "@expo/vector-icons"
 import { useAuth } from "../../contexts/AuthContext"
+import { useSubscription } from "../../contexts/SubscriptionContext"
 import { Colors } from "../../constants/Colors"
 import { Typography } from "../../constants/Typography"
 import { UserRole } from "../../constants/Roles"
@@ -23,7 +24,8 @@ import UserService from "../../services/UserService"
 import type { User } from "../../types"
 
 export const StaffManagementScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
-  const { business } = useAuth()
+  const { business, user: currentUser } = useAuth()
+  const { subscription, plans } = useSubscription()
   const [users, setUsers] = useState<User[]>([])
   const [loading, setLoading] = useState(true)
   const [modalVisible, setModalVisible] = useState(false)
@@ -37,6 +39,12 @@ export const StaffManagementScreen: React.FC<{ navigation: any }> = ({ navigatio
   const [password, setPassword] = useState("")
   const [showPassword, setShowPassword] = useState(false)
   const [role, setRole] = useState<UserRole>(UserRole.CASHIER)
+  
+  // Subscription Limit Check
+  const currentPlan = plans.find(p => p.type === subscription?.plan_type)
+  const userLimit = currentPlan?.user_limit || 2 // Default to 2 for trial/fallback
+  const activeUserCount = users.filter(u => u.active).length
+  const isLimitReached = activeUserCount >= userLimit && currentUser?.role !== "super_admin"
 
   useEffect(() => {
     fetchUsers()
@@ -56,6 +64,17 @@ export const StaffManagementScreen: React.FC<{ navigation: any }> = ({ navigatio
   }
 
   const handleOpenAddModal = () => {
+    if (isLimitReached) {
+      Alert.alert(
+        "User Limit Reached",
+        `Your current plan allows up to ${userLimit} active users. Please upgrade your subscription to add more staff.`,
+        [
+          { text: "Cancel", style: "cancel" },
+          { text: "Upgrade Plan", onPress: () => navigation.navigate("SubscriptionPlans") }
+        ]
+      )
+      return
+    }
     setEditingUser(null)
     setFirstName("")
     setLastName("")
@@ -172,9 +191,17 @@ export const StaffManagementScreen: React.FC<{ navigation: any }> = ({ navigatio
         <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
           <Ionicons name="arrow-back" size={24} color={Colors.gray900} />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Staff Management</Text>
-        <TouchableOpacity onPress={handleOpenAddModal} style={styles.addButton}>
-          <Ionicons name="add" size={24} color={Colors.white} />
+        <View style={{ flex: 1, marginLeft: 12 }}>
+          <Text style={styles.headerTitle}>Staff Members</Text>
+          <Text style={[styles.limitText, isLimitReached && styles.limitTextWarning]}>
+            {activeUserCount} / {userLimit} Active Users
+          </Text>
+        </View>
+        <TouchableOpacity 
+          onPress={handleOpenAddModal} 
+          style={[styles.addButton, isLimitReached && styles.addButtonDisabled]}
+        >
+          <Ionicons name={isLimitReached ? "star" : "add"} size={24} color={Colors.white} />
         </TouchableOpacity>
       </View>
 
@@ -341,6 +368,18 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.teal,
     alignItems: "center",
     justifyContent: "center",
+  },
+  addButtonDisabled: {
+    backgroundColor: Colors.amber,
+  },
+  limitText: {
+    fontSize: Typography.xs,
+    color: Colors.gray500,
+    fontWeight: Typography.medium,
+  },
+  limitTextWarning: {
+    color: Colors.amber,
+    fontWeight: Typography.bold,
   },
   centered: {
     flex: 1,

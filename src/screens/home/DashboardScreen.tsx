@@ -4,7 +4,7 @@ import { View, Text, StyleSheet, TouchableOpacity, ScrollView, SafeAreaView, Dim
 import { Ionicons } from "@expo/vector-icons"
 import { useAuth } from "../../contexts/AuthContext"
 import { RolePermissions } from "../../constants/Roles"
-import { Colors, BusinessThemes } from "../../constants/Colors"
+import { Colors, BusinessThemes, getBusinessTheme } from "../../constants/Colors"
 import { Typography } from "../../constants/Typography"
 import { ReportService, type DailyReport } from "../../services/ReportService"
 import { formatCurrency } from "../../utils/Formatter"
@@ -29,12 +29,13 @@ export const DashboardScreen: React.FC<{ navigation: any }> = ({ navigation }) =
   const [reportData, setReportData] = useState<DailyReport | null>(null)
   const [loading, setLoading] = useState(false)
   
-  const theme = business ? BusinessThemes[business.type] : BusinessThemes.default
+  const theme = getBusinessTheme(business?.type)
   const userRole = (user?.role || "cashier").toLowerCase()
+  const isSuperAdmin = user?.role === "super_admin"
   const permissions = RolePermissions[userRole as keyof typeof RolePermissions] || RolePermissions.cashier
 
   useEffect(() => {
-    if (permissions.canViewReports) {
+    if (permissions.canViewReports && !isSuperAdmin) {
       fetchDailyData()
     }
   }, [business?.id])
@@ -156,8 +157,25 @@ export const DashboardScreen: React.FC<{ navigation: any }> = ({ navigation }) =
             <Ionicons name="chevron-forward" size={20} color={Colors.white} opacity={0.5} />
           </View>
 
+          {/* Super Admin Notice */}
+          {isSuperAdmin && (
+            <View style={styles.adminNotice}>
+              <View style={styles.adminNoticeHeader}>
+                <Ionicons name="shield-checkmark" size={24} color={Colors.teal} />
+                <Text style={styles.adminNoticeTitle}>Super Admin Access</Text>
+              </View>
+              <Text style={styles.adminNoticeText}>
+                You have super admin privileges. To access the full admin panel with subscription management, 
+                business modules, and promo codes, please use the web dashboard.
+              </Text>
+              <Text style={styles.adminNoticeUrl}>
+                Web Admin: /dashboard/admin
+              </Text>
+            </View>
+          )}
+
           {/* Quick Actions or Summary could go here */}
-          {permissions.canViewReports && (
+          {permissions.canViewReports && !isSuperAdmin && (
             <View style={styles.quickInfoContainer}>
               <View style={styles.quickInfoCard}>
                 <Ionicons name="today" size={24} color={Colors.teal} />
@@ -346,5 +364,36 @@ const styles = StyleSheet.create({
     fontSize: Typography.lg,
     fontWeight: Typography.bold,
     color: Colors.gray900,
+  },
+  adminNotice: {
+    backgroundColor: Colors.teal + "10",
+    borderWidth: 1,
+    borderColor: Colors.teal + "30",
+    borderRadius: 16,
+    padding: 16,
+    marginBottom: 24,
+  },
+  adminNoticeHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    marginBottom: 12,
+  },
+  adminNoticeTitle: {
+    fontSize: Typography.lg,
+    fontWeight: Typography.bold,
+    color: Colors.teal,
+  },
+  adminNoticeText: {
+    fontSize: Typography.sm,
+    color: Colors.gray700,
+    lineHeight: 20,
+    marginBottom: 8,
+  },
+  adminNoticeUrl: {
+    fontSize: Typography.xs,
+    fontWeight: Typography.semibold,
+    color: Colors.teal,
+    fontFamily: "monospace",
   },
 })

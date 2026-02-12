@@ -11,28 +11,48 @@ import {
   Animated,
   Easing,
   PermissionsAndroid,
+  Switch,
+  ScrollView,
 } from "react-native"
 import { Ionicons } from "@expo/vector-icons"
 import { Colors } from "../../constants/Colors"
 import { Typography } from "../../constants/Typography"
 import { Button } from "../../components/Button"
 import { Input } from "../../components/Input"
-import { BleManager, Device } from "react-native-ble-plx"
+import { useSettings } from "../../contexts/SettingsContext"
 import * as ExpoDevice from "expo-device"
-// import * as Location from "expo-location"
 
-type PrinterType = "bluetooth" | "network" | "internal"
+// Conditional import to handle Expo Go vs Development Build
+let BleManager: any
+try {
+  // We only require it if we're not in the middle of a crash-prone environment
+  // react-native-ble-plx might throw on require if native modules are missing
+  BleManager = require("react-native-ble-plx").BleManager
+} catch (e) {
+  console.warn("BleManager could not be required (missing native module)")
+}
+
+type PrinterType = "bluetooth" | "network" | "internal" | "none"
 
 interface Printer {
   id: string
   name: string
   address: string
-  type: PrinterType,
-  device?: Device // Store raw device for connection
+  type: PrinterType
+  device?: any 
 }
 
 export const PrinterSettingsScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
-  const [selectedType, setSelectedType] = useState<PrinterType>("bluetooth")
+  const { 
+    printerType, 
+    printerAddress, 
+    printerName, 
+    printerPaperSize, 
+    autoPrint, 
+    updatePrinter 
+  } = useSettings()
+
+  const [selectedType, setSelectedType] = useState<PrinterType>(printerType === "none" ? "bluetooth" : printerType)
   const [permissionsGranted, setPermissionsGranted] = useState(false)
   const [isScanning, setIsScanning] = useState(false)
   const [printers, setPrinters] = useState<Printer[]>([])
@@ -41,14 +61,15 @@ export const PrinterSettingsScreen: React.FC<{ navigation: any }> = ({ navigatio
   const [manualPort, setManualPort] = useState("9100")
   const [manualName, setManualName] = useState("")
   
-  const [isBleSupported, setIsBleSupported] = useState(true)
+  const [isBleSupported, setIsBleSupported] = useState(!!BleManager)
   
   // BLE Manager reference
   const manager = useMemo(() => {
+    if (!BleManager) return null
     try {
       return new BleManager()
     } catch (e) {
-      console.warn("BLE Manager could not be initialized (likely missing native module):", e)
+      console.warn("BLE Manager could not be initialized:", e)
       return null
     }
   }, [])
@@ -57,7 +78,6 @@ export const PrinterSettingsScreen: React.FC<{ navigation: any }> = ({ navigatio
   const spinValue = useRef(new Animated.Value(0)).current
 
   useEffect(() => {
-    // Reset on mount
     if (!manager) {
       setIsBleSupported(false)
     }
@@ -67,10 +87,11 @@ export const PrinterSettingsScreen: React.FC<{ navigation: any }> = ({ navigatio
   }, [manager])
 
   useEffect(() => {
-    // Reset state when type changes
     setPrinters([])
     setIsScanning(false)
-    manager?.stopDeviceScan() // Stop any ongoing scan
+    try {
+        manager?.stopDeviceScan()
+    } catch(e) {}
     checkPermissions(selectedType)
   }, [selectedType])
 
@@ -104,36 +125,41 @@ export const PrinterSettingsScreen: React.FC<{ navigation: any }> = ({ navigatio
   })
 
   const requestAndroid31Permissions = async () => {
-    const bluetoothScanPermission = await PermissionsAndroid.request(
-      PermissionsAndroid.PERMISSIONS.BLUETOOTH_SCAN,
-      {
-        title: "Bluetooth Scan Permission",
-        message: "App requires Bluetooth Scanning to find printers",
-        buttonPositive: "OK",
-      }
-    )
-    const bluetoothConnectPermission = await PermissionsAndroid.request(
-      PermissionsAndroid.PERMISSIONS.BLUETOOTH_CONNECT,
-      {
-        title: "Bluetooth Connect Permission",
-        message: "App requires Bluetooth Connect to connect to printers",
-        buttonPositive: "OK",
-      }
-    )
-    const fineLocationPermission = await PermissionsAndroid.request(
-        PermissionsAndroid.PERMISSIONS.ACCESS_FINE_LOCATION,
+    if (Platform.OS !== "android") return true
+    try {
+        const bluetoothScanPermission = await PermissionsAndroid.request(
+        PermissionsAndroid.PERMISSIONS.BLUETOOTH_SCAN,
         {
-          title: "Location Permission",
-          message: "App requires Location permission to scan for Bluetooth devices",
-          buttonPositive: "OK",
+            title: "Bluetooth Scan Permission",
+            message: "App requires Bluetooth Scanning to find printers",
+            buttonPositive: "OK",
         }
-      )
+        )
+        const bluetoothConnectPermission = await PermissionsAndroid.request(
+        PermissionsAndroid.PERMISSIONS.BLUETOOTH_CONNECT,
+        {
+            title: "Bluetooth Connect Permission",
+            message: "App requires Bluetooth Connect to connect to printers",
+            buttonPositive: "OK",
+        }
+        )
+        const fineLocationPermission = await PermissionsAndroid.request(
+            PermissionsAndroid.PERMISSIONS.ACCESS_FINE_LOCATION,
+            {
+            title: "Location Permission",
+            message: "App requires Location permission to scan for Bluetooth devices",
+            buttonPositive: "OK",
+            }
+        )
 
-    return (
-      bluetoothScanPermission === "granted" &&
-      bluetoothConnectPermission === "granted" &&
-      fineLocationPermission === "granted"
-    )
+        return (
+        bluetoothScanPermission === "granted" &&
+        bluetoothConnectPermission === "granted" &&
+        fineLocationPermission === "granted"
+        )
+    } catch(e) {
+        return false
+    }
   }
 
   const requestPermissions = async () => {
@@ -159,19 +185,16 @@ export const PrinterSettingsScreen: React.FC<{ navigation: any }> = ({ navigatio
         if (isGranted) startScanning()
       }
     } else {
-      // iOS
-      setPermissionsGranted(true) // Assumed for now, actual request happens on use
+      setPermissionsGranted(true) 
       startScanning()
     }
   }
 
   const checkPermissions = async (type: PrinterType) => {
-    if (type === "internal" || type === "network") {
+    if (type === "internal" || type === "network" || type === "none") {
         setPermissionsGranted(true)
         return
     }
-    // For Bluetooth, we will check on "Allow Access" or auto-check if we could
-    // For now, we set to false to force user to press "Turn On/Allow"
     setPermissionsGranted(false) 
   }
 
@@ -179,17 +202,15 @@ export const PrinterSettingsScreen: React.FC<{ navigation: any }> = ({ navigatio
     if (selectedType === "bluetooth") {
        scanBluetooth()
     } else if (selectedType === "internal") {
-       // Internal - mock
        setPrinters([{ id: "int1", name: "Internal Printer", address: "LOCAL", type: "internal" }])
     }
-    // Network type uses manual entry, so no auto-scan
   }
 
   const scanBluetooth = () => {
       if (!manager) {
         Alert.alert(
           "Bluetooth Not Available",
-          "Bluetooth functionality requires a custom Development Build. It will not work in Expo Go.\n\nPlease rebuild your app using 'npx expo run:android' or 'npx expo run:ios'."
+          "Bluetooth functionality requires a custom Development Build (native modules). It will not work in Expo Go.\n\nYou can use Network printers instead while testing in Expo Go."
         )
         return
       }
@@ -197,193 +218,118 @@ export const PrinterSettingsScreen: React.FC<{ navigation: any }> = ({ navigatio
       setIsScanning(true)
       setPrinters([])
 
-      manager.startDeviceScan(null, null, (error, device) => {
-          if (error) {
-              // Handle error (e.g. bluetooth off)
-              console.warn("BLE Scan Error", error)
-              setIsScanning(false)
-              Alert.alert("Scan Error", error.message)
-              return
-          }
+      try {
+        manager.startDeviceScan(null, null, (error: any, device: any) => {
+            if (error) {
+                console.warn("BLE Scan Error", error)
+                setIsScanning(false)
+                Alert.alert("Scan Error", "Please ensure Bluetooth is enabled")
+                return
+            }
 
-          if (device && (device.name || device.localName)) {
-              setPrinters(prev => {
-                  if (prev.find(p => p.id === device.id)) return prev
-                  return [...prev, {
-                      id: device.id,
-                      name: device.name || device.localName || "Unknown Device",
-                      address: device.id, // MAC on Android, UUID on iOS
-                      type: "bluetooth",
-                      device: device
-                  }]
-              })
-          }
-      })
+            if (device && (device.name || device.localName)) {
+                setPrinters(prev => {
+                    if (prev.find(p => p.id === device.id)) return prev
+                    return [...prev, {
+                        id: device.id,
+                        name: device.name || device.localName || "Unknown Device",
+                        address: device.id, 
+                        type: "bluetooth",
+                        device: device
+                    }]
+                })
+            }
+        })
+      } catch(e) {
+         setIsScanning(false)
+         Alert.alert("Error", "Failed to start scanning. Native module error.")
+      }
       
-      // Stop scan after 10 seconds
       setTimeout(() => {
-          manager?.stopDeviceScan()
+          try { manager?.stopDeviceScan() } catch(e) {}
           setIsScanning(false)
       }, 10000)
   }
 
-  const handleAddNetworkPrinter = () => {
+  const handleAddNetworkPrinter = async () => {
     if (!manualIp) {
       Alert.alert("Invalid input", "Please enter a valid IP address")
       return
     }
     
-    // Simulate adding/verifying
-    setIsScanning(true) // Reuse spinner for "verifying"
-    setTimeout(() => {
+    setIsScanning(true) 
+    setTimeout(async () => {
        setIsScanning(false)
-       const newPrinter: Printer = {
-           id: `net-${Date.now()}`,
-           name: manualName || "Network Printer",
-           address: `${manualIp}:${manualPort}`,
-           type: "network"
-       }
-       setPrinters(prev => [...prev, newPrinter])
-       setManualIp("")
-       setManualName("")
-       Alert.alert("Success", "Printer added successfully")
-    }, 1500)
+       const address = `${manualIp}:${manualPort}`
+       const name = manualName || "Network Printer"
+       
+       await updatePrinter({
+           type: "network",
+           address: address,
+           name: name
+       })
+       
+       Alert.alert("Success", `Printer ${name} saved as default`)
+    }, 1000)
   }
   
   const handleConnect = async (printer: Printer) => {
-      if (printer.type === "bluetooth" && printer.device) {
-          Alert.alert("Connecting", `Connecting to ${printer.name}...`)
-          try {
-             const device = await printer.device.connect()
-             await device.discoverAllServicesAndCharacteristics()
-             Alert.alert("Success", `Connected to ${printer.name}`)
-             // Save connected printer to storage here
-          } catch (e: any) {
-              Alert.alert("Connection Failed", e.message || "Could not connect")
-          }
-      } else {
-        // Network/Internal
-        Alert.alert("Connect", `Connecting to ${printer.name}...`, [
+    if (printer.type === "bluetooth") {
+        if (!manager) {
+            Alert.alert("Native Error", "Bluetooth requires development build")
+            return
+        }
+        Alert.alert("Save Printer", `Set ${printer.name} as your default receipt printer?`, [
             { text: "Cancel", style: "cancel" },
-            { text: "Connect", onPress: () => Alert.alert("Success", `Connected to ${printer.name}`) },
+            { 
+                text: "Set Default", 
+                onPress: async () => {
+                    await updatePrinter({
+                        type: "bluetooth",
+                        address: printer.address,
+                        name: printer.name
+                    })
+                    toastNotify(`Printer ${printer.name} ready`)
+                }
+            }
         ])
-      }
+    } else {
+        await updatePrinter({
+            type: printer.type,
+            address: printer.address,
+            name: printer.name
+        })
+        Alert.alert("Success", `${printer.name} configured`)
+    }
+  }
+
+  const toastNotify = (msg: string) => {
+      // Small helper as we don't have react-hot-toast on mobile yet
+      Alert.alert("Printer Updated", msg)
   }
 
   const renderPrinterItem = ({ item }: { item: Printer }) => (
-    <TouchableOpacity style={styles.printerCard} onPress={() => handleConnect(item)}>
-      <View style={styles.printerIcon}>
-        <Ionicons name="print" size={24} color={Colors.teal} />
+    <TouchableOpacity 
+        style={[
+            styles.printerCard, 
+            printerAddress === item.address && styles.activePrinterCard
+        ]} 
+        onPress={() => handleConnect(item)}
+    >
+      <View style={[styles.printerIcon, printerAddress === item.address && styles.activePrinterIcon]}>
+        <Ionicons name="print" size={24} color={printerAddress === item.address ? Colors.white : Colors.teal} />
       </View>
       <View style={styles.printerInfo}>
         <Text style={styles.printerName}>{item.name}</Text>
         <Text style={styles.printerAddress}>{item.address}</Text>
       </View>
-      <Ionicons name="chevron-forward" size={20} color={Colors.gray400} />
+      {printerAddress === item.address ? (
+          <Ionicons name="checkmark-circle" size={24} color={Colors.teal} />
+      ) : (
+          <Ionicons name="chevron-forward" size={20} color={Colors.gray400} />
+      )}
     </TouchableOpacity>
   )
-
-  const renderContent = () => {
-    if (!permissionsGranted && selectedType === "bluetooth") {
-      return (
-        <View style={styles.centerContent}>
-          <View style={styles.iconCircle}>
-             <Ionicons name="bluetooth" size={48} color={Colors.gray500} />
-          </View>
-          <Text style={styles.permissionTitle}>Enable Bluetooth Access</Text>
-          <Text style={styles.permissionText}>
-            We need your permission to search for available Bluetooth printers nearby.
-          </Text>
-          <Button title="Allow Access" onPress={requestPermissions} primaryColor={Colors.teal} style={styles.permissionButton} />
-        </View>
-      )
-    }
-
-    if (selectedType === "network") {
-      return (
-        <View style={styles.networkParamsContainer}>
-           <Text style={styles.sectionTitle}>Add Network Printer</Text>
-           <Input 
-             label="IP Address" 
-             placeholder="e.g. 192.168.1.100" 
-             value={manualIp} 
-             onChangeText={setManualIp} 
-             keyboardType="numeric"
-           />
-           <View style={{ flexDirection: "row", gap: 12 }}>
-             <View style={{ flex: 1 }}>
-               <Input 
-                 label="Port" 
-                 placeholder="9100" 
-                 value={manualPort} 
-                 onChangeText={setManualPort} 
-                 keyboardType="numeric"
-               />
-             </View>
-             <View style={{ flex: 1 }}>
-                <Input 
-                 label="Name (Optional)" 
-                 placeholder="Kitchen Printer" 
-                 value={manualName} 
-                 onChangeText={setManualName} 
-               />
-             </View>
-           </View>
-           
-           <Button 
-             title={isScanning ? "Verifying..." : "Add Printer"}
-             onPress={handleAddNetworkPrinter} 
-             primaryColor={Colors.teal}
-             loading={isScanning}
-           />
-           
-           {printers.length > 0 && (
-             <>
-               <Text style={[styles.sectionTitle, { marginTop: 24 }]}>Saved Printers</Text>
-               <FlatList
-                data={printers}
-                keyExtractor={(item) => item.id}
-                renderItem={renderPrinterItem}
-                contentContainerStyle={styles.listContentNoPadding}
-              />
-             </>
-           )}
-        </View>
-      )
-    }
-
-    if (isScanning) {
-        return (
-          <View style={styles.centerContent}>
-            <Animated.View style={{ transform: [{ rotate: spin }] }}>
-              <Ionicons name="sync" size={64} color={Colors.teal} />
-            </Animated.View>
-            <Text style={styles.scanningTitle}>Searching for printers...</Text>
-            <Text style={styles.scanningText}>Please ensure your printer is powered on and nearby.</Text>
-          </View>
-        )
-      }
-
-    if (printers.length === 0) {
-      return (
-        <View style={styles.centerContent}>
-          <Ionicons name="alert-circle-outline" size={64} color={Colors.gray300} />
-          <Text style={styles.emptyTitle}>No printers found</Text>
-          <Text style={styles.emptyText}>We couldn't find any {selectedType} printers.</Text>
-          <Button title="Try Again" onPress={startScanning} variant="outline" style={styles.retryButton} />
-        </View>
-      )
-    }
-
-    return (
-      <FlatList
-        data={printers}
-        keyExtractor={(item) => item.id}
-        renderItem={renderPrinterItem}
-        contentContainerStyle={styles.listContent}
-      />
-    )
-  }
 
   return (
     <View style={styles.container}>
@@ -395,31 +341,170 @@ export const PrinterSettingsScreen: React.FC<{ navigation: any }> = ({ navigatio
         <View style={{ width: 40 }} />
       </View>
 
-      <View style={styles.typeSelector}>
-        <TouchableOpacity
-          style={[styles.typeTab, selectedType === "bluetooth" && styles.typeTabActive]}
-          onPress={() => setSelectedType("bluetooth")}
-        >
-          <Ionicons name="bluetooth" size={20} color={selectedType === "bluetooth" ? Colors.teal : Colors.gray500} />
-          <Text style={[styles.typeText, selectedType === "bluetooth" && styles.typeTextActive]}>Bluetooth</Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={[styles.typeTab, selectedType === "network" && styles.typeTabActive]}
-          onPress={() => setSelectedType("network")}
-        >
-          <Ionicons name="wifi" size={20} color={selectedType === "network" ? Colors.teal : Colors.gray500} />
-          <Text style={[styles.typeText, selectedType === "network" && styles.typeTextActive]}>Wi-Fi</Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={[styles.typeTab, selectedType === "internal" && styles.typeTabActive]}
-          onPress={() => setSelectedType("internal")}
-        >
-          <Ionicons name="hardware-chip-outline" size={20} color={selectedType === "internal" ? Colors.teal : Colors.gray500} />
-          <Text style={[styles.typeText, selectedType === "internal" && styles.typeTextActive]}>Built-in</Text>
-        </TouchableOpacity>
-      </View>
+      <ScrollView style={{ flex: 1 }} showsVerticalScrollIndicator={false}>
+        <View style={styles.sectionHeader}>
+            <Text style={styles.sectionHeaderText}>Active Printer</Text>
+        </View>
 
-      <View style={styles.content}>{renderContent()}</View>
+        <View style={styles.activePrinterBox}>
+            {printerType !== "none" ? (
+                <View style={styles.activeRow}>
+                    <View style={styles.activeIcon}>
+                        <Ionicons 
+                            name={printerType === 'bluetooth' ? 'bluetooth' : printerType === 'network' ? 'wifi' : 'hardware-chip'} 
+                            size={20} 
+                            color={Colors.teal} 
+                        />
+                    </View>
+                    <View style={{ flex: 1 }}>
+                        <Text style={styles.activeName}>{printerName || "Configured Printer"}</Text>
+                        <Text style={styles.activeAddress}>{printerAddress}</Text>
+                    </View>
+                    <View style={styles.activeBadge}>
+                        <Text style={styles.activeBadgeText}>ACTIVE</Text>
+                    </View>
+                </View>
+            ) : (
+                <Text style={styles.noPrinterText}>No printer configured</Text>
+            )}
+        </View>
+
+        <View style={styles.sectionHeader}>
+            <Text style={styles.sectionHeaderText}>Printing Preferences</Text>
+        </View>
+
+        <View style={styles.card}>
+            <View style={styles.settingRow}>
+                <View>
+                    <Text style={styles.settingTitle}>Auto-Print Receipt</Text>
+                    <Text style={styles.settingSub}>Print automatically after sale</Text>
+                </View>
+                <Switch 
+                    value={autoPrint} 
+                    onValueChange={(val) => updatePrinter({ autoPrint: val })}
+                    trackColor={{ false: Colors.gray200, true: Colors.teal }}
+                />
+            </View>
+            <View style={[styles.settingRow, { borderTopWidth: 1, borderTopColor: Colors.gray100, marginTop: 12, paddingTop: 12 }]}>
+                <View>
+                    <Text style={styles.settingTitle}>Paper Size</Text>
+                    <Text style={styles.settingSub}>Standard size for thermal rolls</Text>
+                </View>
+                <View style={styles.sizeToggle}>
+                    {(['58mm', '80mm'] as const).map(size => (
+                        <TouchableOpacity 
+                            key={size}
+                            onPress={() => updatePrinter({ paperSize: size })}
+                            style={[styles.sizeBtn, printerPaperSize === size && styles.activeSizeBtn]}
+                        >
+                            <Text style={[styles.sizeBtnText, printerPaperSize === size && styles.activeSizeBtnText]}>{size}</Text>
+                        </TouchableOpacity>
+                    ))}
+                </View>
+            </View>
+        </View>
+
+        <View style={styles.sectionHeader}>
+            <Text style={styles.sectionHeaderText}>Find & Add Printers</Text>
+        </View>
+
+        <View style={styles.typeSelector}>
+            {(['bluetooth', 'network', 'internal'] as const).map(type => (
+                <TouchableOpacity
+                    key={type}
+                    style={[styles.typeTab, selectedType === type && styles.typeTabActive]}
+                    onPress={() => setSelectedType(type)}
+                >
+                    <Ionicons 
+                        name={type === 'bluetooth' ? 'bluetooth' : type === 'network' ? 'wifi' : 'hardware-chip-outline'} 
+                        size={18} 
+                        color={selectedType === type ? Colors.teal : Colors.gray500} 
+                    />
+                    <Text style={[styles.typeTabText, selectedType === type && styles.typeTabTextActive]}>
+                        {type === 'bluetooth' ? 'BT' : type === 'network' ? 'Wi-Fi' : 'Built-in'}
+                    </Text>
+                </TouchableOpacity>
+            ))}
+        </View>
+
+        <View style={styles.scanArea}>
+            {selectedType === "bluetooth" && (
+                !permissionsGranted ? (
+                    <View style={styles.centerContent}>
+                        <View style={styles.iconCircle}>
+                            <Ionicons name="bluetooth" size={32} color={Colors.gray500} />
+                        </View>
+                        <Text style={styles.scanTitle}>Bluetooth Permission</Text>
+                        <Text style={styles.scanSub}>Search for nearby printers</Text>
+                        <Button title="Allow Access" onPress={requestPermissions} primaryColor={Colors.teal} style={{ width: '100%', marginTop: 16 }} />
+                    </View>
+                ) : isScanning ? (
+                    <View style={styles.centerContent}>
+                        <Animated.View style={{ transform: [{ rotate: spin }] }}>
+                            <Ionicons name="sync" size={48} color={Colors.teal} />
+                        </Animated.View>
+                        <Text style={styles.scanTitle}>Scanning...</Text>
+                    </View>
+                ) : (
+                    <FlatList
+                        scrollEnabled={false}
+                        data={printers}
+                        keyExtractor={(item) => item.id}
+                        renderItem={renderPrinterItem}
+                        ListEmptyComponent={
+                            <View style={styles.centerContent}>
+                                <Text style={styles.noPrinterText}>No bluetooth devices found</Text>
+                                <Button title="Scan Again" onPress={startScanning} variant="outline" style={{ marginTop: 12 }} />
+                            </View>
+                        }
+                    />
+                )
+            )}
+
+            {selectedType === "network" && (
+                <View style={styles.networkForm}>
+                    <Input 
+                        label="Printer IP" 
+                        placeholder="192.168.1.100" 
+                        value={manualIp} 
+                        onChangeText={setManualIp} 
+                        keyboardType="numeric"
+                    />
+                    <View style={{ flexDirection: 'row', gap: 12 }}>
+                        <View style={{ flex: 1 }}>
+                            <Input label="Port" value={manualPort} onChangeText={setManualPort} keyboardType="numeric" />
+                        </View>
+                        <View style={{ flex: 2 }}>
+                            <Input label="Name" placeholder="Kitchen" value={manualName} onChangeText={setManualName} />
+                        </View>
+                    </View>
+                    <Button 
+                        title="Add & Set Default" 
+                        onPress={handleAddNetworkPrinter} 
+                        primaryColor={Colors.teal} 
+                        loading={isScanning}
+                        style={{ marginTop: 8 }}
+                    />
+                </View>
+            )}
+
+            {selectedType === "internal" && (
+                <FlatList
+                    scrollEnabled={false}
+                    data={printers}
+                    keyExtractor={(item) => item.id}
+                    renderItem={renderPrinterItem}
+                    ListEmptyComponent={
+                        <View style={styles.centerContent}>
+                            <Button title="Check Hardware" onPress={startScanning} primaryColor={Colors.teal} />
+                        </View>
+                    }
+                />
+            )}
+        </View>
+
+        <View style={{ height: 40 }} />
+      </ScrollView>
     </View>
   )
 }
@@ -448,149 +533,216 @@ const styles = StyleSheet.create({
     fontWeight: Typography.bold,
     color: Colors.gray900,
   },
+  sectionHeader: {
+    paddingHorizontal: 20,
+    paddingTop: 24,
+    paddingBottom: 8,
+  },
+  sectionHeaderText: {
+    fontSize: 12,
+    fontWeight: 'bold',
+    color: Colors.gray500,
+    textTransform: 'uppercase',
+    letterSpacing: 1,
+  },
+  card: {
+    backgroundColor: Colors.white,
+    marginHorizontal: 16,
+    borderRadius: 16,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: Colors.gray100,
+  },
+  activePrinterBox: {
+    backgroundColor: Colors.white,
+    marginHorizontal: 16,
+    borderRadius: 16,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: Colors.teal + '40', // light teal border
+  },
+  activeRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  activeIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: Colors.teal + '10',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  activeName: {
+    fontWeight: 'bold',
+    fontSize: 16,
+    color: Colors.gray900,
+  },
+  activeAddress: {
+    fontSize: 12,
+    color: Colors.gray500,
+  },
+  activeBadge: {
+    backgroundColor: Colors.teal,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 4,
+  },
+  activeBadgeText: {
+    color: Colors.white,
+    fontSize: 10,
+    fontWeight: 'bold',
+  },
+  noPrinterText: {
+    color: Colors.gray400,
+    fontSize: 14,
+    textAlign: 'center',
+    fontStyle: 'italic',
+  },
+  settingRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  settingTitle: {
+    fontWeight: 'bold',
+    fontSize: 15,
+    color: Colors.gray800,
+  },
+  settingSub: {
+    fontSize: 12,
+    color: Colors.gray500,
+  },
+  sizeToggle: {
+    flexDirection: 'row',
+    backgroundColor: Colors.gray100,
+    padding: 4,
+    borderRadius: 8,
+  },
+  sizeBtn: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 6,
+  },
+  activeSizeBtn: {
+    backgroundColor: Colors.white,
+    shadowSmall: {
+        shadowColor: "#000",
+        shadowOffset: { width: 0, height: 1 },
+        shadowOpacity: 0.1,
+        shadowRadius: 2,
+        elevation: 1,
+    }
+  } as any,
+  sizeBtnText: {
+    fontSize: 12,
+    fontWeight: 'bold',
+    color: Colors.gray500,
+  },
+  activeSizeBtnText: {
+    color: Colors.teal,
+  },
   typeSelector: {
     flexDirection: "row",
-    backgroundColor: Colors.white,
     paddingHorizontal: 16,
-    paddingVertical: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: Colors.gray100,
-    gap: 12,
+    marginBottom: 12,
+    gap: 8,
   },
   typeTab: {
     flex: 1,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 4,
+    backgroundColor: Colors.white,
     paddingVertical: 10,
-    borderRadius: 8,
-    backgroundColor: Colors.gray50,
+    borderRadius: 12,
     borderWidth: 1,
     borderColor: Colors.gray200,
-    gap: 8,
   },
   typeTabActive: {
-    backgroundColor: Colors.teal50,
     borderColor: Colors.teal,
+    backgroundColor: Colors.teal + '05',
   },
-  typeText: {
-    fontSize: Typography.xs,
-    fontWeight: Typography.semibold,
+  typeTabText: {
+    fontSize: 12,
+    fontWeight: '600',
     color: Colors.gray600,
   },
-  typeTextActive: {
+  typeTabTextActive: {
     color: Colors.teal,
   },
-  content: {
-    flex: 1,
+  scanArea: {
+    paddingHorizontal: 16,
   },
   centerContent: {
-    flex: 1,
-    alignItems: "center",
-    justifyContent: "center",
     padding: 32,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  scanTitle: {
+    marginTop: 12,
+    fontWeight: 'bold',
+    color: Colors.gray700,
+  },
+  scanSub: {
+    fontSize: 13,
+    color: Colors.gray500,
+    textAlign: 'center',
   },
   iconCircle: {
-    width: 96,
-    height: 96,
-    borderRadius: 48,
+    width: 64,
+    height: 64,
+    borderRadius: 32,
     backgroundColor: Colors.gray100,
-    alignItems: "center",
-    justifyContent: "center",
-    marginBottom: 24,
-  },
-  permissionTitle: {
-    fontSize: Typography.xl,
-    fontWeight: Typography.bold,
-    color: Colors.gray900,
-    marginBottom: 12,
-    textAlign: "center",
-  },
-  permissionText: {
-    fontSize: Typography.base,
-    color: Colors.gray600,
-    textAlign: "center",
-    marginBottom: 32,
-    lineHeight: 24,
-  },
-  permissionButton: {
-    minWidth: 200,
-  },
-  scanningTitle: {
-    fontSize: Typography.lg,
-    fontWeight: Typography.semibold,
-    color: Colors.gray900,
-    marginTop: 24,
-    marginBottom: 8,
-  },
-  scanningText: {
-    fontSize: Typography.sm,
-    color: Colors.gray500,
-    textAlign: "center",
-  },
-  emptyTitle: {
-    fontSize: Typography.lg,
-    fontWeight: Typography.semibold,
-    color: Colors.gray900,
-    marginTop: 24,
-    marginBottom: 8,
-  },
-  emptyText: {
-    fontSize: Typography.sm,
-    color: Colors.gray500,
-    marginBottom: 24,
-    textAlign: "center",
-  },
-  retryButton: {
-    minWidth: 160,
-  },
-  listContent: {
-    padding: 16,
-    gap: 12,
-  },
-  listContentNoPadding: {
-    paddingVertical: 12,
-    gap: 12,
-  },
-  networkParamsContainer: {
-    padding: 20,
-    marginTop: 10,
-  },
-  sectionTitle: {
-    fontSize: Typography.base,
-    fontWeight: Typography.bold,
-    color: Colors.gray900,
-    marginBottom: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   printerCard: {
     flexDirection: "row",
     alignItems: "center",
     padding: 16,
     backgroundColor: Colors.white,
-    borderRadius: 12,
+    borderRadius: 16,
+    marginBottom: 10,
     borderWidth: 1,
-    borderColor: Colors.gray200,
-    gap: 16,
+    borderColor: Colors.gray100,
+    gap: 12,
+  },
+  activePrinterCard: {
+    borderColor: Colors.teal,
+    backgroundColor: Colors.teal + '02',
   },
   printerIcon: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    backgroundColor: Colors.teal50,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: Colors.teal + '08',
     alignItems: "center",
     justifyContent: "center",
+  },
+  activePrinterIcon: {
+    backgroundColor: Colors.teal,
   },
   printerInfo: {
     flex: 1,
   },
   printerName: {
-    fontSize: Typography.base,
-    fontWeight: Typography.semibold,
+    fontSize: 15,
+    fontWeight: "bold",
     color: Colors.gray900,
-    marginBottom: 4,
   },
   printerAddress: {
-    fontSize: Typography.xs,
+    fontSize: 12,
     color: Colors.gray500,
+    marginTop: 2,
   },
+  networkForm: {
+      backgroundColor: Colors.white,
+      padding: 20,
+      borderRadius: 16,
+      borderWidth: 1,
+      borderColor: Colors.gray100,
+  }
 })

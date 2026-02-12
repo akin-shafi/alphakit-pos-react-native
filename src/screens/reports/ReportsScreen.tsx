@@ -8,7 +8,7 @@ import { useAuth } from "../../contexts/AuthContext"
 import { RolePermissions } from "../../constants/Roles"
 import type { Sale } from "../../types"
 import { ReceiptModal } from "../../components/ReceiptModal"
-import { Colors, BusinessThemes } from "../../constants/Colors"
+import { Colors, BusinessThemes, getBusinessTheme } from "../../constants/Colors"
 import { Typography } from "../../constants/Typography"
 import { ReportService, type DailyReport, type SalesReport } from "../../services/ReportService"
 import { formatCurrency } from "../../utils/Formatter"
@@ -25,7 +25,7 @@ export const ReportsScreen: React.FC<{ navigation: any }> = ({ navigation }) => 
   const [reportData, setReportData] = useState<DailyReport | SalesReport | null>(null)
   const [transactions, setTransactions] = useState<Sale[]>([])
 
-  const theme = business ? BusinessThemes[business.type] : BusinessThemes.default
+  const theme = getBusinessTheme(business?.type)
   
   const roleKey = (user?.role?.toLowerCase() || "") as any
   const permissions = RolePermissions[roleKey as keyof typeof RolePermissions]
@@ -238,10 +238,20 @@ export const ReportsScreen: React.FC<{ navigation: any }> = ({ navigation }) => 
 
             <View style={styles.transactionsCard}>
               {!isCashier && (
-                <TouchableOpacity style={styles.generateButton} onPress={handleGenerateReport}>
-                  <Ionicons name="document-text" size={20} color={Colors.white} />
-                  <Text style={styles.generateButtonText}>Generate Detailed PDF</Text>
-                </TouchableOpacity>
+                <View style={{ gap: 12 }}>
+                  <TouchableOpacity style={styles.generateButton} onPress={handleGenerateReport}>
+                    <Ionicons name="document-text" size={20} color={Colors.white} />
+                    <Text style={styles.generateButtonText}>Generate Detailed PDF</Text>
+                  </TouchableOpacity>
+                  
+                  <TouchableOpacity 
+                    style={[styles.generateButton, { backgroundColor: Colors.white, borderWidth: 2, borderColor: Colors.teal }]} 
+                    onPress={() => navigation.navigate("AuditLog")}
+                  >
+                    <Ionicons name="shield-checkmark" size={20} color={Colors.teal} />
+                    <Text style={[styles.generateButtonText, { color: Colors.teal }]}>View System Audit Log</Text>
+                  </TouchableOpacity>
+                </View>
               )}
 
               {!isCashier && (

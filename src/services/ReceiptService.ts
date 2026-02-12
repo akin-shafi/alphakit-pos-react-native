@@ -8,11 +8,15 @@ export const ReceiptService = {
   /**
    * Generates HTML content for the receipt
    */
-  generateReceiptHtml: (sale: Sale, business: Business): string => {
+  generateReceiptHtml: (sale: Sale, business: Business, paperSize: '58mm' | '80mm' = '80mm'): string => {
     const totalItems = sale.items.reduce((acc, item) => acc + item.quantity, 0);
     const date = new Date(sale.createdAt).toLocaleString();
-    const receiptNo = sale.receiptNo || sale.id; // Fallback to ID if receiptNo not present (though undefined in earlier type def, we handle it)
+    const receiptNo = sale.receiptNo || sale.id; 
     const currency = business.currency || "NGN";
+
+    // Adjust width based on paper size
+    const width = paperSize === '58mm' ? '200px' : '300px';
+    const padding = paperSize === '58mm' ? '10px' : '20px';
 
     // Generate items rows
     const itemsHtml = sale.items
@@ -41,8 +45,8 @@ export const ReceiptService = {
             font-size: 12px;
             color: #000;
             margin: 0;
-            padding: 20px;
-            max-width: 300px; /* Target roughly 80mm width */
+            padding: ${padding};
+            max-width: ${width}; 
             margin: 0 auto;
         }
         .header { text-align: center; margin-bottom: 15px; border-bottom: 1px dashed #000; padding-bottom: 10px; }
@@ -121,11 +125,18 @@ export const ReceiptService = {
   },
 
   /**
-   * Prints the receipt
+   * Prints the receipt using system print dialog or direct ESC/POS (placeholder)
    */
-  printReceipt: async (sale: Sale, business: Business) => {
+  printReceipt: async (sale: Sale, business: Business, settings?: { paperSize?: '58mm' | '80mm', type?: string, address?: string }) => {
     try {
-      const html = ReceiptService.generateReceiptHtml(sale, business);
+      const paperSize = settings?.paperSize || '80mm';
+      const html = ReceiptService.generateReceiptHtml(sale, business, paperSize);
+      
+      // If network/bluetooth printer is set, specialized logic would go here
+      // For now, we use expo-print for compatibility while providing the hooks
+      
+      console.log(`Printing to ${settings?.type || 'system'} @ ${settings?.address || 'default'}`);
+
       await Print.printAsync({
         html,
       });
@@ -138,9 +149,9 @@ export const ReceiptService = {
   /**
    * Generates a PDF and allows sharing/saving
    */
-  shareReceipt: async (sale: Sale, business: Business) => {
+  shareReceipt: async (sale: Sale, business: Business, paperSize: '58mm' | '80mm' = '80mm') => {
      try {
-      const html = ReceiptService.generateReceiptHtml(sale, business);
+      const html = ReceiptService.generateReceiptHtml(sale, business, paperSize);
       const { uri } = await Print.printToFileAsync({ html });
       await shareAsync(uri, { UTI: '.pdf', mimeType: 'application/pdf' });
     } catch (error) {

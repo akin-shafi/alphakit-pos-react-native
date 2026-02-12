@@ -5,6 +5,7 @@ export enum UserRole {
   ADMIN = "admin",
   MANAGER = "manager",
   CASHIER = "cashier",
+  KITCHEN = "kitchen",
 }
 
 export const RolePermissions = {
@@ -47,5 +48,16 @@ export const RolePermissions = {
     canProcessSales: true,
     canManageShifts: false,
     canApproveDiscounts: false,
+  },
+  [UserRole.KITCHEN]: {
+    canManageBusiness: false,
+    canManageUsers: false,
+    canManageInventory: false,
+    canViewReports: false,
+    canManageSettings: false,
+    canProcessSales: false,
+    canManageShifts: false,
+    canApproveDiscounts: false,
+    isKDS: true,
   },
 }

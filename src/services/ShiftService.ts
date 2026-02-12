@@ -4,6 +4,7 @@ export interface Shift {
   id: number
   business_id: number
   user_id: number
+  user_name?: string
   start_time: string
   end_time: string | null
   start_cash: number
@@ -12,6 +13,13 @@ export interface Shift {
   terminal_id?: number
   total_sales: number
   transaction_count: number
+  total_cash_sales: number
+  total_card_sales: number
+  total_transfer_sales: number
+  total_external_terminal_sales: number
+  total_credit_sales: number
+  expected_cash: number
+  cash_variance: number
   notes?: string
 }
 
@@ -19,7 +27,7 @@ export interface ShiftSummary {
   expected_cash: number
   total_sales: number
   transaction_count: number
-  discrepancy: number
+  cash_variance: number
 }
 
 export const ShiftService = {

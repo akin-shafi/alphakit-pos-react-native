@@ -5,6 +5,7 @@ import { CheckoutScreen } from "../screens/pos/CheckoutScreen"
 import { ExternalTerminalScreen } from "../screens/pos/ExternalTerminalScreen"
 import { DraftOrdersScreen } from "../screens/pos/DraftOrdersScreen"
 import DetailedReportScreen from "../screens/reports/DetailedReportScreen"
+import { AuditLogScreen } from "../screens/reports/AuditLogScreen"
 import { PaymentSettingsScreen } from "../screens/settings/PaymentSettingsScreen"
 import { StaffManagementScreen } from "../screens/settings/StaffManagementScreen"
 import { PrinterSettingsScreen } from "../screens/settings/PrinterSettingsScreen"
@@ -20,14 +21,31 @@ import { ShiftManagementScreen } from "../screens/settings/ShiftManagementScreen
 import { TableManagementScreen } from "../screens/settings/TableManagementScreen"
 
 import { TaxSettingsScreen } from "../screens/settings/TaxSettingsScreen"
+import { KitchenScreen } from "../screens/kitchen/KitchenScreen"
+import { useAuth } from "../contexts/AuthContext"
 
 const Stack = createStackNavigator()
 
 export const POSStack = () => {
+  const { user } = useAuth()
+  const isKDS = user?.role === "KITCHEN" || user?.role === "CHEF" || user?.role === "BARTENDER"
+  const isSuperAdmin = user?.role === "super_admin"
+  
+  // Determine initial route based on user role
+  const getInitialRoute = () => {
+    if (isSuperAdmin) return "Dashboard" // Super admins go to dashboard with admin message
+    if (isKDS) return "Kitchen"
+    return "Dashboard"
+  }
+
   return (
-    <Stack.Navigator initialRouteName="Dashboard" screenOptions={{ headerShown: false }}>
+    <Stack.Navigator 
+      initialRouteName={getInitialRoute()} 
+      screenOptions={{ headerShown: false }}
+    >
       <Stack.Screen name="Dashboard" component={DashboardScreen} />
       <Stack.Screen name="MainTabs" component={MainTabs} />
+      <Stack.Screen name="Kitchen" component={KitchenScreen} />
       
       {/* Sub-screens */}
       <Stack.Screen name="Cart" component={CartScreen} />  
@@ -46,6 +64,7 @@ export const POSStack = () => {
       <Stack.Screen name="ShiftManagement" component={ShiftManagementScreen} />
       <Stack.Screen name="TableManagement" component={TableManagementScreen} />
       <Stack.Screen name="TaxSettings" component={TaxSettingsScreen} />
+      <Stack.Screen name="AuditLog" component={AuditLogScreen} />
     </Stack.Navigator>
   )
 }

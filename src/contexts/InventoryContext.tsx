@@ -17,6 +17,9 @@ interface InventoryContextType {
   updateProduct: (productId: string, updates: Partial<Product>) => Promise<void>
   addProduct: (product: Partial<Product>) => Promise<void>
   deleteProduct: (productId: string) => Promise<void>
+  addCategory: (name: string) => Promise<void>
+  updateCategory: (id: string, name: string) => Promise<void>
+  deleteCategory: (id: string) => Promise<void>
 }
 
 const InventoryContext = createContext<InventoryContextType | undefined>(undefined)
@@ -31,12 +34,14 @@ export const InventoryProvider: React.FC<{ children: React.ReactNode }> = ({ chi
 
   useEffect(() => {
     if (business) {
-      refreshData()
+        refreshData()
     } else {
-      setProducts([])
-      setCategories([])
+        setProducts([])
+        setCategories([])
     }
   }, [business?.id])
+
+  // ... (refreshData, getFilteredProducts, updateProduct, addProduct, deleteProduct - omitted for brevity, keeping existing)
 
   const refreshData = async () => {
     if (!business?.id) return
@@ -109,6 +114,36 @@ export const InventoryProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     }
   }
 
+  const addCategory = async (name: string) => {
+    try {
+      const created = await CategoryService.createCategory({ name })
+      setCategories((prev) => [...prev, created])
+    } catch (e) {
+      console.error("Failed to create category", e)
+      throw e
+    }
+  }
+
+  const updateCategory = async (id: string, name: string) => {
+    try {
+      const updated = await CategoryService.updateCategory(id, { name })
+      setCategories((prev) => prev.map((c) => (c.id.toString() === id ? updated : c)))
+    } catch (e) {
+      console.error("Failed to update category", e)
+      throw e
+    }
+  }
+
+  const deleteCategory = async (id: string) => {
+    try {
+      await CategoryService.deleteCategory(id)
+      setCategories((prev) => prev.filter((c) => c.id.toString() !== id))
+    } catch (e) {
+      console.error("Failed to delete category", e)
+      throw e
+    }
+  }
+
   return (
     <InventoryContext.Provider
       value={{
@@ -124,6 +159,9 @@ export const InventoryProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         updateProduct,
         addProduct,
         deleteProduct,
+        addCategory,
+        updateCategory,
+        deleteCategory,
       }}
     >
       {children}

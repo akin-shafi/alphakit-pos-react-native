@@ -8,7 +8,7 @@ import { usePaymentConfig } from "../../contexts/PaymentConfigContext"
 import { PaymentMethodSelector } from "../../components/PaymentMethodSelector"
 import { Button } from "../../components/Button"
 import { Card } from "../../components/Card"
-import { Colors, BusinessThemes } from "../../constants/Colors"
+import { Colors, BusinessThemes, getBusinessTheme } from "../../constants/Colors"
 import { Typography } from "../../constants/Typography"
 import { formatCurrency } from "../../utils/Formatter"
 import { SalesService } from "../../services/SalesService"
@@ -16,14 +16,14 @@ import { useSettings } from "../../contexts/SettingsContext"
 import { DraftService } from "../../services/DraftService"
 
 export const CartScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
-  const { business } = useAuth()
+  const { business, activeShift } = useAuth()
   const { items, updateQuantity, removeItem, getSubtotal, clearCart } = useCart()
   const { config } = usePaymentConfig()
   const { enableDrafts, enableTables, enableTax, taxRate } = useSettings()
   const [showPaymentSelector, setShowPaymentSelector] = useState(false)
   const [isProcessing, setIsProcessing] = useState(false)
 
-  const theme = business ? BusinessThemes[business.type] : BusinessThemes.default
+  const theme = getBusinessTheme(business?.type)
 
   const getTax = () => {
     if (!enableTax) return 0
@@ -81,6 +81,7 @@ export const CartScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
         amount_paid: getTotal(),
         tax: getTax(),
         discount: items.reduce((sum, item) => sum + item.discount, 0),
+        shift_id: activeShift?.id,
       }
 
       const receiptData = await SalesService.createSale(payload)

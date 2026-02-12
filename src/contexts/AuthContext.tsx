@@ -93,7 +93,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const resetInactivityTimer = () => {
     if (user) {
-      startInactivityTimer()
+      // Don't auto-logout kitchen staff during busy shifts
+      const isKitchen = user.role === "KITCHEN" || user.role === "CHEF" || user.role === "BARTENDER";
+      if (!isKitchen) {
+        startInactivityTimer()
+      }
     }
   }
 

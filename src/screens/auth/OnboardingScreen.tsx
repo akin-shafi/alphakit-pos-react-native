@@ -12,22 +12,24 @@ import {
   TouchableWithoutFeedback,
 } from "react-native"
 import { Ionicons } from "@expo/vector-icons"
+import type { ComponentProps } from "react"
 import { Input } from "../../components/Input"
 import { Button } from "../../components/Button"
 import { PasswordStrengthMeter } from "../../components/PasswordStrengthMeter"
 import { useAuth } from "../../contexts/AuthContext"
+import { useSubscription } from "../../contexts/SubscriptionContext"
 import { AuthService } from "../../services/AuthService"
 import { Colors } from "../../constants/Colors"
 import { Typography } from "../../constants/Typography"
 import { Toast } from "../../components/Toast"
 
 const BUSINESS_TYPES = [
-  { value: "restaurant", label: "Restaurant", icon: "restaurant" },
-  { value: "pharmacy", label: "Pharmacy", icon: "medical" },
-  { value: "retail", label: "Retail Store", icon: "cart" },
-  { value: "supermarket", label: "Supermarket", icon: "basket" },
-  { value: "boutique", label: "Boutique", icon: "shirt" },
-  { value: "other", label: "Other", icon: "business" },
+  { value: "restaurant", label: "Restaurant", icon: "restaurant" as const },
+  { value: "pharmacy", label: "Pharmacy", icon: "medical" as const },
+  { value: "retail", label: "Retail Store", icon: "cart" as const },
+  { value: "supermarket", label: "Supermarket", icon: "basket" as const },
+  { value: "boutique", label: "Boutique", icon: "shirt" as const },
+  { value: "other", label: "Other", icon: "business" as const },
 ]
 
 const CURRENCIES = [
@@ -39,8 +41,12 @@ const CURRENCIES = [
 
 export const OnboardingScreen = ({ navigation }: any) => {
   const { registerBusiness } = useAuth()
+  const { availableModules, availableBundles } = useSubscription()
 
   const [step, setStep] = useState(1)
+  const [selectedModules, setSelectedModules] = useState<string[]>([])
+  const [showAdvanced, setShowAdvanced] = useState(false)
+  const [skipTrial, setSkipTrial] = useState(false)
   const [useSampleData, setUseSampleData] = useState(true)
   const [loading, setLoading] = useState(false)
   const [errors, setErrors] = useState<Record<string, string>>({})
@@ -107,7 +113,7 @@ export const OnboardingScreen = ({ navigation }: any) => {
 
   const handleNext = () => {
     if (validateStep()) {
-      if (step < 4) {
+      if (step < 5) {
         setStep(step + 1)
       } else {
         submit()
@@ -128,9 +134,9 @@ export const OnboardingScreen = ({ navigation }: any) => {
         admin.password === admin.confirmPassword
       )
     }
-    if (step === 4) return true
+    if (step === 4 || step === 5) return true
     return false
-  }, [step, business, admin, useSampleData])
+  }, [step, business, admin])
 
   const submit = async () => {
     setLoading(true)
@@ -144,6 +150,8 @@ export const OnboardingScreen = ({ navigation }: any) => {
           email: business.email.trim() || undefined,
           phone: business.phone.trim() || undefined,
           currency: business.currency,
+          modules: selectedModules,
+          skip_trial: skipTrial,
         },
         user: {
           first_name: admin.firstName.trim(),
@@ -193,13 +201,13 @@ export const OnboardingScreen = ({ navigation }: any) => {
               )}
               <View style={styles.headerText}>
                 <Text style={styles.title}>Business Setup</Text>
-                <Text style={styles.subtitle}>Step {step} of 4</Text>
+                <Text style={styles.subtitle}>Step {step} of 5</Text>
               </View>
             </View>
           </View>
 
           <View style={styles.progressContainer}>
-            <View style={[styles.progressBar, { width: `${(step / 4) * 100}%` }]} />
+            <View style={[styles.progressBar, { width: `${(step / 5) * 100}%` }]} />
           </View>
 
           <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 30 }}>
@@ -230,7 +238,7 @@ export const OnboardingScreen = ({ navigation }: any) => {
                       }}
                     >
                       <Ionicons
-                        name={item.icon as any}
+                        name={item.icon as ComponentProps<typeof Ionicons>["name"]}
                         size={28}
                         color={business.type === item.value ? "#fff" : Colors.gray600}
                       />
@@ -386,6 +394,69 @@ export const OnboardingScreen = ({ navigation }: any) => {
             )}
 
             {step === 4 && (
+              <View>
+                <Text style={styles.sectionTitle}>Business Power-Ups</Text>
+                <Text style={styles.sectionSubtitle}>Choose the features that fit your business needs. 14 days free trial included!</Text>
+                
+                <View style={styles.modulesGrid}>
+                  {availableModules.map((mod) => (
+                    <TouchableOpacity
+                      key={mod.type}
+                      style={[
+                        styles.moduleCard,
+                        selectedModules.includes(mod.type) && styles.moduleCardActive
+                      ]}
+                      onPress={() => {
+                        setSelectedModules(prev => 
+                          prev.includes(mod.type) 
+                            ? prev.filter(m => m !== mod.type) 
+                            : [...prev, mod.type]
+                        )
+                      }}
+                    >
+                      <View style={styles.moduleHeader}>
+                        <Ionicons 
+                          name={selectedModules.includes(mod.type) ? "checkbox" : "square-outline"} 
+                          size={24} 
+                          color={selectedModules.includes(mod.type) ? Colors.teal : Colors.gray400} 
+                        />
+                        <Text style={styles.modulePrice}>₦{mod.price.toLocaleString()}/mo</Text>
+                      </View>
+                      <Text style={styles.moduleName}>{mod.name}</Text>
+                      <Text style={styles.moduleDesc}>{mod.description}</Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+
+                {/* Billing Priority Selector */}
+                <View style={styles.billingPriorityContainer}>
+                   <Text style={styles.billingPriorityTitle}>Billing Priority</Text>
+                   <View style={styles.billingToggle}>
+                      <TouchableOpacity 
+                        style={[styles.billingOption, !skipTrial && styles.billingOptionActive]}
+                        onPress={() => setSkipTrial(false)}
+                      >
+                         <Ionicons name="time-outline" size={18} color={!skipTrial ? Colors.white : Colors.teal} />
+                         <Text style={[styles.billingOptionText, !skipTrial && styles.billingOptionTextActive]}>14-Day Trial</Text>
+                      </TouchableOpacity>
+                      <TouchableOpacity 
+                        style={[styles.billingOption, skipTrial && styles.billingOptionActiveImmediate]}
+                        onPress={() => setSkipTrial(true)}
+                      >
+                         <Ionicons name="flash-outline" size={18} color={skipTrial ? Colors.white : Colors.warning} />
+                         <Text style={[styles.billingOptionText, skipTrial && styles.billingOptionTextActiveImmediate]}>Pay Immediately</Text>
+                      </TouchableOpacity>
+                   </View>
+                   <Text style={styles.billingHint}>
+                      {skipTrial 
+                        ? "Bypass verification delays with immediate account activation." 
+                        : "Explore every feature with zero financial commitment for 2 weeks."}
+                   </Text>
+                </View>
+              </View>
+            )}
+
+            {step === 5 && (
               <View style={styles.sampleDataContainer}>
                 <View style={styles.iconCircle}>
                   <Ionicons name="gift-outline" size={48} color={Colors.teal} />
@@ -433,7 +504,7 @@ export const OnboardingScreen = ({ navigation }: any) => {
 
           <View style={styles.footer}>
             <Button
-              title={step === 4 ? "Complete Setup" : "Continue"}
+              title={step === 5 ? "Complete Setup" : "Continue"}
               onPress={handleNext}
               loading={loading}
               disabled={!isCurrentStepValid || loading}
@@ -447,7 +518,7 @@ export const OnboardingScreen = ({ navigation }: any) => {
             visible={toast.visible}
             message={toast.message}
             type={toast.type}
-            onHide={() => setToast((prev) => ({ ...prev, visible: false }))}
+            onHide={React.useCallback(() => setToast((prev) => ({ ...prev, visible: false })), [])}
           />
         </View>
       </TouchableWithoutFeedback>
@@ -464,6 +535,8 @@ const styles = StyleSheet.create({
   headerText: { flex: 1 },
   title: { fontSize: 26, fontWeight: "700", color: Colors.gray900 },
   subtitle: { fontSize: 16, color: Colors.gray600, marginTop: 4 },
+  sectionTitle: { fontSize: 20, fontWeight: "700", color: Colors.gray900, marginBottom: 8 },
+  sectionSubtitle: { fontSize: 14, color: Colors.gray600, marginBottom: 24 },
   progressContainer: {
     height: 6,
     backgroundColor: "#e0e0e0",
@@ -602,5 +675,196 @@ const styles = StyleSheet.create({
   currencyLabelActive: {
     color: Colors.teal,
     fontWeight: Typography.bold,
+  },
+  modulesGrid: {
+    gap: 16,
+    marginTop: 10,
+  },
+  moduleCard: {
+    padding: 16,
+    borderRadius: 16,
+    borderWidth: 1.5,
+    borderColor: Colors.gray200,
+    backgroundColor: Colors.white,
+  },
+  moduleCardActive: {
+    borderColor: Colors.teal,
+    backgroundColor: Colors.teal + "05",
+  },
+  moduleHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 8,
+  },
+  moduleName: {
+    fontSize: 16,
+    fontWeight: "700",
+    color: Colors.gray900,
+    marginBottom: 4,
+  },
+  modulePrice: {
+    fontSize: 14,
+    fontWeight: "800",
+    color: Colors.teal,
+  },
+  moduleDesc: {
+    fontSize: 13,
+    color: Colors.gray600,
+    lineHeight: 18,
+  },
+  modeToggleContainer: {
+    flexDirection: "row",
+    backgroundColor: Colors.gray100,
+    borderRadius: 12,
+    padding: 4,
+    marginBottom: 20,
+  },
+  modeButton: {
+    flex: 1,
+    paddingVertical: 10,
+    alignItems: "center",
+    borderRadius: 8,
+  },
+  modeButtonActive: {
+    backgroundColor: Colors.white,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  modeButtonText: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: Colors.gray500,
+  },
+  modeButtonTextActive: {
+    color: Colors.teal,
+  },
+  bundlesContainer: {
+    gap: 16,
+  },
+  bundleCard: {
+    backgroundColor: Colors.white,
+    borderRadius: 20,
+    borderWidth: 1.5,
+    borderColor: Colors.gray200,
+    padding: 20,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 10,
+    elevation: 2,
+  },
+  bundleCardActive: {
+    borderColor: Colors.teal,
+    backgroundColor: Colors.teal + "05",
+  },
+  bundleHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    marginBottom: 16,
+  },
+  bundleInfo: {
+    flex: 1,
+    marginRight: 10,
+  },
+  bundleName: {
+    fontSize: 18,
+    fontWeight: "800",
+    color: Colors.gray900,
+    marginBottom: 4,
+  },
+  bundleDesc: {
+    fontSize: 13,
+    color: Colors.gray500,
+    lineHeight: 18,
+  },
+  bundlePricing: {
+    alignItems: "flex-end",
+  },
+  bundlePrice: {
+    fontSize: 18,
+    fontWeight: "900",
+    color: Colors.teal,
+  },
+  bundlePriceUnit: {
+    fontSize: 10,
+    color: Colors.gray400,
+    fontWeight: "600",
+  },
+  bundleModules: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 6,
+  },
+  bundleModuleTag: {
+    backgroundColor: Colors.gray100,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 6,
+  },
+  bundleModuleText: {
+    fontSize: 10,
+    fontWeight: "700",
+    color: Colors.gray600,
+  },
+  billingPriorityContainer: {
+    marginTop: 30,
+    backgroundColor: Colors.white,
+    borderRadius: 24,
+    padding: 20,
+    borderWidth: 1,
+    borderColor: Colors.gray100,
+  },
+  billingPriorityTitle: {
+    fontSize: 16,
+    fontWeight: "800",
+    color: Colors.gray900,
+    marginBottom: 16,
+    textAlign: "center",
+  },
+  billingToggle: {
+    flexDirection: "row",
+    gap: 10,
+  },
+  billingOption: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+    paddingVertical: 12,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: Colors.gray200,
+  },
+  billingOptionActive: {
+    backgroundColor: Colors.teal,
+    borderColor: Colors.teal,
+  },
+  billingOptionActiveImmediate: {
+    backgroundColor: Colors.warning,
+    borderColor: Colors.warning,
+  },
+  billingOptionText: {
+    fontSize: 12,
+    fontWeight: "800",
+    color: Colors.gray500,
+    textTransform: "uppercase",
+  },
+  billingOptionTextActive: {
+    color: Colors.white,
+  },
+  billingOptionTextActiveImmediate: {
+    color: Colors.white,
+  },
+  billingHint: {
+    marginTop: 12,
+    fontSize: 12,
+    color: Colors.gray500,
+    textAlign: "center",
+    fontStyle: "italic",
   },
 })

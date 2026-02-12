@@ -7,18 +7,18 @@ import { Ionicons } from "@expo/vector-icons"
 import { useAuth } from "../../contexts/AuthContext"
 import { useCart } from "../../contexts/CartContext"
 import { Button } from "../../components/Button"
-import { Colors, BusinessThemes } from "../../constants/Colors"
+import { Colors, BusinessThemes, getBusinessTheme } from "../../constants/Colors"
 import { Typography } from "../../constants/Typography"
 import { formatCurrency } from "../../utils/Formatter"
 import { SalesService } from "../../services/SalesService"
 
 export const ExternalTerminalScreen: React.FC<{ navigation: any; route: any }> = ({ navigation, route }) => {
   const { provider = "moniepoint" } = route.params
-  const { business } = useAuth()
+  const { business, activeShift } = useAuth()
   const { items, getTotal, clearCart } = useCart()
   const [processing, setProcessing] = useState(false)
 
-  const theme = business ? BusinessThemes[business.type] : BusinessThemes.default
+  const theme = getBusinessTheme(business?.type)
 
   const providerNames: Record<string, string> = {
     moniepoint: "MoniePoint",
@@ -38,6 +38,8 @@ export const ExternalTerminalScreen: React.FC<{ navigation: any; route: any }> =
         payment_method: "CARD", // External terminal is card-based
         amount_paid: getTotal(),
         discount: items.reduce((sum, item) => sum + item.discount, 0),
+        shift_id: activeShift?.id,
+        terminal_provider: provider.toUpperCase(),
       }
 
       const receiptData = await SalesService.createSale(payload)

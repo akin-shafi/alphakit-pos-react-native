@@ -25,11 +25,16 @@ export interface Business {
     | "boutique"
     | "retail"
     | "bar"
+    | "supermarket"
+    | "other"
+    | "SERVICE"
   address?: string
   city?: string
   phone?: string
   currency?: string
   is_seeded?: boolean
+  subscription_status?: string
+  active_modules?: string[]
   created_at?: string
   updated_at?: string
 }
@@ -60,6 +65,9 @@ export interface RegisterBusinessPayload {
     email?: string
     phone?: string
     currency: string
+    modules?: string[]
+    bundle_code?: string
+    skip_trial?: boolean
   }
   user: {
     first_name: string
@@ -145,7 +153,8 @@ export interface Sale {
   total: number
   paymentMethod: "cash" | "card" | "transfer" | "credit" | "external-terminal"
   externalTerminalProvider?: "moniepoint" | "opay" | "other"
-  status: "completed" | "pending" | "voided"
+  status: "completed" | "pending" | "voided" | "DRAFT" | "HELD"
+  preparation_status?: PrepStatus
   createdAt: string
   syncStatus: "synced" | "pending" | "failed"
   cashierName?: string
@@ -174,4 +183,17 @@ export interface PaymentConfig {
     externalTerminal: boolean
   }
   externalTerminalProviders: Array<"moniepoint" | "opay" | "other">
+}
+
+export type PrepStatus = "PENDING" | "PREPARING" | "READY" | "SERVED";
+
+export interface SaleItem {
+  id: number;
+  sale_id: number;
+  product_id: number;
+  product_name: string;
+  quantity: number;
+  unit_price: number;
+  total_price: number;
+  preparation_status: PrepStatus;
 }

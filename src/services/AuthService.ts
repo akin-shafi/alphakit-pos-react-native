@@ -112,6 +112,21 @@ export const AuthService = {
   updateBusiness: async (businessId: number, data: Partial<Business>): Promise<Business> => {
     const res = await apiClient.put(`/businesses/${businessId}`, data);
     return res.data;
+  },
+
+  getRecipe: async (productId: string): Promise<any> => {
+    const res = await apiClient.get(`/recipes/${productId}`);
+    return res.data;
+  },
+
+  addIngredient: async (data: any): Promise<any> => {
+    const res = await apiClient.post(`/recipes`, data);
+    return res.data;
+  },
+
+  removeIngredient: async (id: string): Promise<any> => {
+    const res = await apiClient.delete(`/recipes/${id}`);
+    return res.data;
   }
 };
 

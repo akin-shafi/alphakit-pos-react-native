@@ -3,7 +3,7 @@ import React, { useState, useEffect } from "react"
 import { View, Text, StyleSheet, TouchableOpacity, FlatList, Alert, ActivityIndicator } from "react-native"
 import { Ionicons } from "@expo/vector-icons"
 import { useAuth } from "../../contexts/AuthContext"
-import { Colors, BusinessThemes } from "../../constants/Colors"
+import { Colors, BusinessThemes, getBusinessTheme } from "../../constants/Colors"
 import { Typography } from "../../constants/Typography"
 import { formatCurrency } from "../../utils/Formatter"
 import { Shift, ShiftService } from "../../services/ShiftService"
@@ -11,7 +11,7 @@ import { RolePermissions } from "../../constants/Roles"
 
 export const ShiftManagementScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
   const { user, business, activeShift, checkActiveShift } = useAuth()
-  const theme = business ? BusinessThemes[business.type] : BusinessThemes.default
+  const theme = getBusinessTheme(business?.type)
   
   const roleKey = (user?.role?.toLowerCase() || "cashier") as any
   const permissions = RolePermissions[roleKey as keyof typeof RolePermissions]
@@ -155,8 +155,8 @@ export const ShiftManagementScreen: React.FC<{ navigation: any }> = ({ navigatio
             <Text style={styles.detailValue}>{formatCurrency(item.start_cash, business?.currency)}</Text>
           </View>
           <View style={styles.detailItem}>
-            <Text style={styles.detailLabel}>Sales</Text>
-            <Text style={styles.detailValue}>{formatCurrency(item.total_sales, business?.currency)}</Text>
+            <Text style={styles.detailLabel}>Expected</Text>
+            <Text style={styles.detailValue}>{item.status === "closed" ? formatCurrency(item.expected_cash, business?.currency) : "---"}</Text>
           </View>
           {item.end_cash !== null && (
             <View style={styles.detailItem}>
@@ -164,6 +164,23 @@ export const ShiftManagementScreen: React.FC<{ navigation: any }> = ({ navigatio
               <Text style={styles.detailValue}>{formatCurrency(item.end_cash, business?.currency)}</Text>
             </View>
           )}
+          {item.status === "closed" && (
+            <View style={styles.detailItem}>
+              <Text style={styles.detailLabel}>Variance</Text>
+              <Text style={[
+                styles.detailValue, 
+                { color: item.cash_variance === 0 ? Colors.success : item.cash_variance < 0 ? Colors.error : "#eab308" }
+              ]}>
+                {item.cash_variance > 0 ? "+" : ""}{formatCurrency(item.cash_variance, business?.currency)}
+              </Text>
+            </View>
+          )}
+        </View>
+        <View style={[styles.shiftDetails, { borderTopWidth: 0, paddingTop: 8 }]}>
+          <View style={styles.detailItem}>
+            <Text style={styles.detailLabel}>Total Sales</Text>
+            <Text style={[styles.detailValue, { color: Colors.teal }]}>{formatCurrency(item.total_sales, business?.currency)}</Text>
+          </View>
         </View>
       </View>
     )

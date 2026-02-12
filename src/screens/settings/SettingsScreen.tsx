@@ -5,7 +5,7 @@ import { useAuth } from "../../contexts/AuthContext"
 import { useSettings } from "../../contexts/SettingsContext"
 
 import { RolePermissions, UserRole } from "../../constants/Roles"
-import { Colors, BusinessThemes } from "../../constants/Colors"
+import { Colors, BusinessThemes, getBusinessTheme } from "../../constants/Colors"
 import { Typography } from "../../constants/Typography"
 import { AuthService } from "../../services/AuthService"
 
@@ -16,7 +16,7 @@ export const SettingsScreen: React.FC<{ navigation: any }> = ({ navigation }) =>
 
 
 
-  const theme = business ? BusinessThemes[business.type] : BusinessThemes.default
+  const theme = getBusinessTheme(business?.type)
   const role =
   user?.role?.toLowerCase() as UserRole | undefined;
 

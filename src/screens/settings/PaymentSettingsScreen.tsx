@@ -6,14 +6,14 @@ import { Ionicons } from "@expo/vector-icons"
 import { useAuth } from "../../contexts/AuthContext"
 import { usePaymentConfig } from "../../contexts/PaymentConfigContext"
 import { Card } from "../../components/Card"
-import { Colors, BusinessThemes } from "../../constants/Colors"
+import { Colors, BusinessThemes, getBusinessTheme } from "../../constants/Colors"
 import { Typography } from "../../constants/Typography"
 
 export const PaymentSettingsScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
   const { business } = useAuth()
   const { config, updateConfig } = usePaymentConfig()
 
-  const theme = business ? BusinessThemes[business.type] : BusinessThemes.default
+  const theme = getBusinessTheme(business?.type)
 
   const defaultModes = [
     {

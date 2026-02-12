@@ -40,11 +40,28 @@ export const SalesService = {
   /**
    * Void a sale transaction
    * @param saleId - Sale ID
+   * @param reason - Reason for voiding
    * @returns Updated (voided) sale
    */
-  voidSale: async (saleId: string): Promise<Sale> => {
-    const endpoint = API_ENDPOINTS.sales.void(saleId);
-    const res = await apiClient.post(endpoint);
+  voidSale: async (saleId: string | number, reason: string): Promise<Sale> => {
+    const endpoint = API_ENDPOINTS.sales.void(saleId.toString());
+    const res = await apiClient.post(endpoint, { reason });
+    return res.data;
+  },
+
+  /**
+   * Update the preparation status of an entire sale (KDS)
+   */
+  updatePreparationStatus: async (saleId: string | number, status: string): Promise<any> => {
+    const res = await apiClient.patch(`/sales/${saleId}/preparation`, { status });
+    return res.data;
+  },
+
+  /**
+   * Update the preparation status of a specific item (KDS)
+   */
+  updateItemPreparationStatus: async (saleId: string | number, itemId: string | number, status: string): Promise<any> => {
+    const res = await apiClient.patch(`/sales/${saleId}/items/${itemId}/preparation`, { status });
     return res.data;
   },
 };

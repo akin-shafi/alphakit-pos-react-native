@@ -4,11 +4,13 @@ import { POSHomeScreen } from "../screens/pos/POSHomeScreen"
 import { InventoryScreen } from "../screens/inventory/InventoryScreen"
 import { ReportsScreen } from "../screens/reports/ReportsScreen"
 import { SettingsScreen } from "../screens/settings/SettingsScreen"
+import { KitchenScreen } from "../screens/kitchen/KitchenScreen"
 import { Ionicons } from "@expo/vector-icons"
 import { Colors } from "../constants/Colors"
 import { useSafeAreaInsets } from "react-native-safe-area-context"
 import { Platform } from "react-native"
 import { useAuth } from "../contexts/AuthContext"
+import { useSubscription } from "../contexts/SubscriptionContext"
 import { RolePermissions } from "../constants/Roles"
 
 const Tab = createBottomTabNavigator()
@@ -16,6 +18,7 @@ const Tab = createBottomTabNavigator()
 export const MainTabs = () => {
   const insets = useSafeAreaInsets()
   const { user } = useAuth()
+  const { hasModule } = useSubscription()
   
   const roleKey = (user?.role?.toLowerCase() || "") as any
   const permissions = RolePermissions[roleKey as keyof typeof RolePermissions]
@@ -50,6 +53,19 @@ export const MainTabs = () => {
           ),
         }}
       />
+
+      {(permissions as any)?.isKDS && hasModule("KITCHEN_DISPLAY") && (
+        <Tab.Screen
+          name="KitchenTab"
+          component={KitchenScreen}
+          options={{
+            tabBarLabel: "Kitchen",
+            tabBarIcon: ({ color, size }) => (
+              <Ionicons name="restaurant-outline" size={size} color={color} />
+            ),
+          }}
+        />
+      )}
       
       {permissions?.canManageInventory && (
         <Tab.Screen

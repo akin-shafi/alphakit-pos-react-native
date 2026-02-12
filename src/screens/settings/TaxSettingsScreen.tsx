@@ -3,7 +3,7 @@ import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert, TextInput,
 import { Ionicons } from "@expo/vector-icons"
 import { useAuth } from "../../contexts/AuthContext"
 import { useSettings } from "../../contexts/SettingsContext"
-import { Colors, BusinessThemes } from "../../constants/Colors"
+import { Colors, BusinessThemes, getBusinessTheme } from "../../constants/Colors"
 import { Typography } from "../../constants/Typography"
 import { Button } from "../../components/Button"
 import { Card } from "../../components/Card"
@@ -11,7 +11,7 @@ import { Card } from "../../components/Card"
 export const TaxSettingsScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
   const { business } = useAuth()
   const { enableTax, taxRate, toggleTax, updateTaxRate } = useSettings()
-  const theme = business ? BusinessThemes[business.type] : BusinessThemes.default
+  const theme = getBusinessTheme(business?.type)
   
   const [rateInput, setRateInput] = useState(taxRate.toString())
   const [loading, setLoading] = useState(false)

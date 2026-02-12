@@ -5,9 +5,11 @@ import { View, Text, StyleSheet, TouchableOpacity } from "react-native"
 import { Ionicons } from "@expo/vector-icons"
 import { useAuth } from "../../contexts/AuthContext"
 import { useInventory } from "../../contexts/InventoryContext"
+import { useSettings } from "../../contexts/SettingsContext"
 import { Button } from "../../components/Button"
 import { ReceiptPreview } from "../../components/ReceiptPreview"
-import { Colors, BusinessThemes } from "../../constants/Colors"
+import { ReceiptService } from "../../services/ReceiptService"
+import { Colors, BusinessThemes, getBusinessTheme } from "../../constants/Colors"
 import { Typography } from "../../constants/Typography"
 import { formatCurrency } from "../../utils/Formatter"
 
@@ -15,9 +17,10 @@ export const CheckoutScreen: React.FC<{ navigation: any; route: any }> = ({ navi
   const { paymentMethod, provider, receipt, items } = route.params
   const { business, user } = useAuth()
   const { refreshData } = useInventory()
+  const { autoPrint, printerType, printerAddress, printerPaperSize } = useSettings()
   const [printStatus, setPrintStatus] = useState<"idle" | "printing" | "success" | "error">("idle")
 
-  const theme = business ? BusinessThemes[business.type] : BusinessThemes.default
+  const theme = getBusinessTheme(business?.type)
 
   const getPaymentMethodLabel = () => {
     if (paymentMethod === "external-terminal") {
@@ -32,16 +35,31 @@ export const CheckoutScreen: React.FC<{ navigation: any; route: any }> = ({ navi
   }
 
   const handlePrint = async () => {
+    if (!business || !receipt) return;
+    
     setPrintStatus("printing")
-    // Simulate printing
-    setTimeout(() => {
+    try {
+      await ReceiptService.printReceipt(
+        { ...receipt, items: items || [] }, 
+        business,
+        {
+          type: printerType,
+          address: printerAddress,
+          paperSize: printerPaperSize
+        }
+      )
       setPrintStatus("success")
-    }, 2000)
+    } catch (e) {
+      console.error("Print failed", e)
+      setPrintStatus("error")
+    }
   }
 
   useEffect(() => {
-    // Auto print on mount
-    handlePrint()
+    // Auto print on mount if enabled
+    if (autoPrint) {
+        handlePrint()
+    }
   }, [])
 
   if (!business || !user) return null

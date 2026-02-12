@@ -2,7 +2,7 @@
 
 import type React from "react"
 import { useState, useEffect } from "react"
-import { View, Text, StyleSheet, FlatList, TouchableOpacity, Alert, RefreshControl } from "react-native"
+import { View, Text, StyleSheet, FlatList, TouchableOpacity, Alert, RefreshControl, Modal, ScrollView as RNScrollView } from "react-native"
 import { Ionicons } from "@expo/vector-icons"
 import { useAuth } from "../../contexts/AuthContext"
 import { useInventory } from "../../contexts/InventoryContext"
@@ -11,14 +11,28 @@ import { Input } from "../../components/Input"
 import { Button } from "../../components/Button"
 import { ProductDrawer } from "../../components/ProductDrawer"
 import { AuthService } from "../../services/AuthService"
-import { Colors, BusinessThemes } from "../../constants/Colors"
+import { Colors, BusinessThemes, getBusinessTheme } from "../../constants/Colors"
 import { Typography } from "../../constants/Typography"
 import { formatCurrency } from "../../utils/Formatter"
 import type { Product } from "../../types"
 
 export const InventoryScreen: React.FC<{ navigation: any; route: any }> = ({ navigation, route }) => {
   const { business, user } = useAuth()
-  const { products, searchQuery, setSearchQuery, getFilteredProducts, addProduct, updateProduct, deleteProduct, refreshData, loading: inventoryLoading } = useInventory()
+  const { 
+    products, 
+    categories,
+    searchQuery, 
+    setSearchQuery, 
+    getFilteredProducts, 
+    addProduct, 
+    updateProduct, 
+    deleteProduct, 
+    refreshData, 
+    loading: inventoryLoading,
+    addCategory: createCategory,
+    updateCategory: editCategoryService,
+    deleteCategory: removeCategory
+  } = useInventory()
   const [loading, setLoading] = useState(false)
 
   const roleKey = (user?.role?.toLowerCase() || "") as any
@@ -28,6 +42,23 @@ export const InventoryScreen: React.FC<{ navigation: any; route: any }> = ({ nav
   const [drawerVisible, setDrawerVisible] = useState(false)
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null)
   const [drawerMode, setDrawerMode] = useState<"add" | "edit">("add")
+
+  // Category Management State
+  const [categoryModalVisible, setCategoryModalVisible] = useState(false)
+  const [newCatName, setNewCatName] = useState("")
+  const [editingCatId, setEditingCatId] = useState<string | null>(null)
+  const [editCatName, setEditCatName] = useState("")
+
+  // Recipe Modal State
+  const [recipeModalVisible, setRecipeModalVisible] = useState(false)
+  const [recipeIngredients, setRecipeIngredients] = useState<any[]>([])
+  const [recipeLoading, setRecipeLoading] = useState(false)
+  const [selectedIngId, setSelectedIngId] = useState<string>("")
+  const [ingQuantity, setIngQuantity] = useState("1")
+
+  // Ingredient Selection Picker State
+  const [ingPickerVisible, setIngPickerVisible] = useState(false)
+  const [ingSearch, setIngSearch] = useState("")
   
   useEffect(() => {
     if (route.params?.action === "add") {
@@ -76,11 +107,101 @@ export const InventoryScreen: React.FC<{ navigation: any; route: any }> = ({ nav
     }
   }
 
-  const { categories } = useInventory()
+  // Category Handlers
+  const handleAddCategory = async () => {
+    if (!newCatName.trim()) return
+    setLoading(true)
+    try {
+      await createCategory(newCatName)
+      Alert.alert("Success", "Category added")
+      setNewCatName("")
+    } catch (e) {
+      Alert.alert("Error", "Failed to add category")
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const handleUpdateCategory = async () => {
+    if (!editingCatId || !editCatName.trim()) return
+    setLoading(true)
+    try {
+      await editCategoryService(editingCatId, editCatName)
+      Alert.alert("Success", "Category updated")
+      setEditingCatId(null)
+    } catch (e) {
+      Alert.alert("Error", "Failed to update category")
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const handleDeleteCategory = async (id: string, name: string) => {
+    Alert.alert("Delete Category", `Are you sure you want to delete "${name}"?`, [
+       { text: "Cancel", style: "cancel" },
+       { text: "Delete", style: "destructive", onPress: async () => {
+          setLoading(true)
+          try {
+            await removeCategory(id)
+            Alert.alert("Success", "Category deleted")
+          } catch(e) {
+            Alert.alert("Error", "Failed to delete category")
+          } finally {
+            setLoading(false)
+          }
+       }}
+    ])
+  }
 
   const getCategoryName = (categoryId: number) => {
     const cat = categories.find(c => c.id === categoryId)
     return cat?.name || "Unknown"
+  }
+
+  const handleOpenRecipe = async (product: Product) => {
+    setSelectedProduct(product)
+    setRecipeModalVisible(true)
+    setRecipeLoading(true)
+    try {
+      const resp = await AuthService.getRecipe(product.id.toString())
+      setRecipeIngredients(resp.ingredients || resp) // Adjust based on API structure
+    } catch (e) {
+      Alert.alert("Error", "Failed to load recipe")
+    } finally {
+      setRecipeLoading(false)
+    }
+  }
+
+  const handleAddIngredient = async () => {
+    if (!selectedIngId || !selectedProduct) return
+    setLoading(true)
+    try {
+      await AuthService.addIngredient({
+        product_id: selectedProduct.id,
+        ingredient_id: parseInt(selectedIngId),
+        quantity: parseFloat(ingQuantity)
+      })
+      // Refresh
+      const resp = await AuthService.getRecipe(selectedProduct.id.toString())
+      setRecipeIngredients(resp.ingredients || resp)
+      setSelectedIngId("")
+      setIngQuantity("1")
+    } catch (e) {
+      Alert.alert("Error", "Failed to add ingredient")
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const handleRemoveIngredient = async (id: string) => {
+    if (!selectedProduct) return
+    try {
+      await AuthService.removeIngredient(id)
+      const resp = await AuthService.getRecipe(selectedProduct.id.toString())
+      setRecipeIngredients(resp.ingredients || resp)
+    } catch (e) {
+      Alert.alert("Error", "Failed to remove ingredient")
+    }
   }
 
   // Category colors matching reference design
@@ -107,7 +228,7 @@ export const InventoryScreen: React.FC<{ navigation: any; route: any }> = ({ nav
   }
 
   if (!canManage) {
-    const theme = business ? BusinessThemes[business.type] : BusinessThemes.default
+    const theme = getBusinessTheme(business?.type)
     return (
       <View style={styles.container}>
         <View style={[styles.deniedHeader, { backgroundColor: theme.primary }]}>
@@ -153,6 +274,14 @@ export const InventoryScreen: React.FC<{ navigation: any; route: any }> = ({ nav
               <TouchableOpacity style={styles.addButton} onPress={handleAddProduct}>
                 <Ionicons name="add" size={24} color={Colors.white} />
                 <Text style={styles.addButtonText}>Add</Text>
+              </TouchableOpacity>
+            )}
+            {canManage && (
+              <TouchableOpacity 
+                style={{ padding: 8, backgroundColor: Colors.white, borderRadius: 8, borderWidth: 1, borderColor: Colors.gray200 }} 
+                onPress={() => setCategoryModalVisible(true)}
+              >
+                <Ionicons name="list" size={24} color={Colors.gray700} />
               </TouchableOpacity>
             )}
           </View>
@@ -254,7 +383,193 @@ export const InventoryScreen: React.FC<{ navigation: any; route: any }> = ({ nav
         onDelete={handleDeleteProduct}
         product={selectedProduct}
         mode={drawerMode}
+        onManageRecipe={business?.active_modules?.includes('RECIPE_MANAGEMENT') ? handleOpenRecipe : undefined}
       />
+
+      {/* Recipe Management Modal */}
+      <Modal visible={recipeModalVisible} animationType="slide" transparent>
+        <View style={styles.modalOverlay}>
+           <View style={[styles.modalContent, { height: '80%', padding: 0 }]}>
+              <View style={[styles.modalHeader, { padding: 20, borderBottomWidth: 1, borderBottomColor: Colors.gray100 }]}>
+                 <View>
+                    <Text style={styles.modalTitle}>Recipe / BOM</Text>
+                    <Text style={{ fontSize: 14, color: Colors.teal, fontWeight: '500' }}>{selectedProduct?.name}</Text>
+                 </View>
+                 <TouchableOpacity onPress={() => setRecipeModalVisible(false)}>
+                    <Ionicons name="close" size={24} color={Colors.gray500} />
+                 </TouchableOpacity>
+              </View>
+
+              <View style={{ padding: 20 }}>
+                 <Text style={{ fontSize: 14, fontWeight: '600', color: Colors.gray900, marginBottom: 12 }}>Add Ingredient</Text>
+                 <View style={{ flexDirection: 'row', gap: 8 }}>
+                    <View style={{ flex: 1 }}>
+                       <Text style={{ fontSize: 11, color: Colors.gray500, marginBottom: 4 }}>Ingredient</Text>
+                       <TouchableOpacity 
+                          onPress={() => setIngPickerVisible(true)}
+                          style={{ borderWidth: 1, borderColor: Colors.gray200, borderRadius: 8, height: 44, justifyContent: 'center', paddingHorizontal: 12, backgroundColor: Colors.white }}
+                       >
+                          <Text style={{ color: selectedIngId ? Colors.gray900 : Colors.gray400 }}>
+                             {selectedIngId ? products.find(p => p.id.toString() === selectedIngId)?.name : "Select Ingredient..."}
+                          </Text>
+                       </TouchableOpacity>
+                    </View>
+                    <View style={{ width: 80 }}>
+                        <Text style={{ fontSize: 11, color: Colors.gray500, marginBottom: 4 }}>Qty</Text>
+                        <Input 
+                            value={ingQuantity}
+                            onChangeText={setIngQuantity}
+                            keyboardType="decimal-pad"
+                            containerStyle={{ marginTop: 0 }}
+                            style={{ height: 44 }}
+                        />
+                    </View>
+                    <TouchableOpacity 
+                       onPress={handleAddIngredient}
+                       style={{ backgroundColor: Colors.teal, width: 44, height: 44, borderRadius: 8, alignItems: 'center', justifyContent: 'center', alignSelf: 'flex-end' }}
+                    >
+                       <Ionicons name="add" size={24} color="white" />
+                    </TouchableOpacity>
+                 </View>
+              </View>
+
+              <RNScrollView style={{ flex: 1, paddingHorizontal: 20 }}>
+                 <Text style={{ fontSize: 14, fontWeight: '600', color: Colors.gray900, marginBottom: 12 }}>BOM Details</Text>
+                 {recipeLoading ? (
+                    <RefreshControl refreshing />
+                 ) : recipeIngredients.length === 0 ? (
+                    <Text style={{ textAlign: 'center', color: Colors.gray400, marginVertical: 40 }}>No ingredients set.</Text>
+                 ) : (
+                    recipeIngredients.map(ing => (
+                       <View key={ing.id} style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: Colors.gray50 }}>
+                          <View>
+                             <Text style={{ fontWeight: '500', color: Colors.gray900 }}>{products.find(p => p.id === ing.ingredient_id)?.name || "Unknown Item"}</Text>
+                             <Text style={{ fontSize: 12, color: Colors.gray500 }}>Quantity: {ing.quantity}</Text>
+                          </View>
+                          <TouchableOpacity onPress={() => handleRemoveIngredient(ing.id)}>
+                             <Ionicons name="trash-outline" size={20} color={Colors.error} />
+                          </TouchableOpacity>
+                       </View>
+                    ))
+                 )}
+              </RNScrollView>
+           </View>
+        </View>
+      </Modal>
+
+      {/* Ingredient Picker Modal */}
+      <Modal visible={ingPickerVisible} animationType="fade" transparent>
+         <View style={[styles.modalOverlay, { backgroundColor: 'rgba(0,0,0,0.7)' }]}>
+            <View style={[styles.modalContent, { height: '70%', padding: 0 }]}>
+               <View style={[styles.modalHeader, { padding: 20, borderBottomWidth: 1, borderBottomColor: Colors.gray100 }]}>
+                  <Text style={styles.modalTitle}>Select Ingredient</Text>
+                  <TouchableOpacity onPress={() => setIngPickerVisible(false)}>
+                     <Ionicons name="close" size={24} color={Colors.gray500} />
+                  </TouchableOpacity>
+               </View>
+               <View style={{ padding: 16 }}>
+                 <Input 
+                    placeholder="Search products..."
+                    value={ingSearch}
+                    onChangeText={setIngSearch}
+                    containerStyle={{ marginTop: 0 }}
+                 />
+               </View>
+               <FlatList 
+                  data={products.filter(p => 
+                    p.id !== selectedProduct?.id && 
+                    p.name.toLowerCase().includes(ingSearch.toLowerCase())
+                  )}
+                  keyExtractor={item => item.id.toString()}
+                  renderItem={({ item }) => (
+                     <TouchableOpacity 
+                        style={{ padding: 16, borderBottomWidth: 1, borderBottomColor: Colors.gray50 }}
+                        onPress={() => {
+                           setSelectedIngId(item.id.toString())
+                           setIngPickerVisible(false)
+                           setIngSearch("")
+                        }}
+                     >
+                        <Text style={{ fontSize: 16, color: Colors.gray900, fontWeight: '500' }}>{item.name}</Text>
+                        <Text style={{ fontSize: 12, color: Colors.gray500 }}>{formatCurrency(item.price, business?.currency)} • {item.stock} in stock</Text>
+                     </TouchableOpacity>
+                  )}
+                  contentContainerStyle={{ paddingBottom: 20 }}
+               />
+            </View>
+         </View>
+      </Modal>
+
+      {/* Category Management Modal */}
+      <Modal visible={categoryModalVisible} animationType="slide" transparent>
+        <View style={styles.modalOverlay}>
+           <View style={styles.modalContent}>
+              <View style={styles.modalHeader}>
+                 <Text style={styles.modalTitle}>Manage Categories</Text>
+                 <TouchableOpacity onPress={() => setCategoryModalVisible(false)}>
+                    <Ionicons name="close" size={24} color={Colors.gray500} />
+                 </TouchableOpacity>
+              </View>
+              
+              <View style={styles.categoryInputContainer}>
+                 <Input 
+                    placeholder="New Category Name"
+                    value={newCatName}
+                    onChangeText={setNewCatName}
+                    containerStyle={{flex: 1, marginTop: 0}}
+                 />
+                 <Button 
+                    title="Add" 
+                    onPress={handleAddCategory} 
+                    loading={loading && !editingCatId} 
+                    disabled={!newCatName.trim()}
+                    style={{width: 80}}
+                 />
+              </View>
+
+              <RNScrollView style={styles.categoryList}>
+                 {categories.map(cat => (
+                    <View key={cat.id} style={styles.categoryItem}>
+                       {editingCatId === cat.id.toString() ? (
+                          <View style={styles.editContainer}>
+                             <Input 
+                                value={editCatName}
+                                onChangeText={setEditCatName}
+                                containerStyle={{flex: 1, marginTop: 0}}
+                                autoFocus
+                             />
+                             <TouchableOpacity onPress={handleUpdateCategory} style={styles.iconBtn}>
+                                <Ionicons name="checkmark" size={20} color={Colors.teal} />
+                             </TouchableOpacity>
+                             <TouchableOpacity onPress={() => setEditingCatId(null)} style={styles.iconBtn}>
+                                <Ionicons name="close" size={20} color={Colors.gray500} />
+                             </TouchableOpacity>
+                          </View>
+                       ) : (
+                          <>
+                             <Text style={styles.categoryName}>{cat.name}</Text>
+                             <View style={styles.categoryActions}>
+                                <TouchableOpacity onPress={() => {
+                                   setEditingCatId(cat.id.toString())
+                                   setEditCatName(cat.name)
+                                }} style={styles.iconBtn}>
+                                   <Ionicons name="pencil" size={20} color={Colors.gray500} />
+                                </TouchableOpacity>
+                                <TouchableOpacity onPress={() => handleDeleteCategory(cat.id.toString(), cat.name)} style={styles.iconBtn}>
+                                   <Ionicons name="trash-outline" size={20} color={Colors.error} />
+                                </TouchableOpacity>
+                             </View>
+                          </>
+                       )}
+                    </View>
+                 ))}
+                 {categories.length === 0 && (
+                    <Text style={styles.emptyText}>No categories found.</Text>
+                 )}
+              </RNScrollView>
+           </View>
+        </View>
+      </Modal>
     </View>
   )
 }
@@ -466,4 +781,62 @@ const styles = StyleSheet.create({
     color: Colors.gray500,
     textAlign: 'center',
   },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    justifyContent: 'center',
+    padding: 20
+  },
+  modalContent: {
+    backgroundColor: 'white',
+    borderRadius: 16,
+    padding: 20,
+    maxHeight: '80%'
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 20
+  },
+  modalTitle: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: Colors.gray900
+  },
+  categoryInputContainer: {
+    flexDirection: 'row',
+    gap: 10,
+    alignItems: 'flex-start',
+    marginBottom: 20
+  },
+  categoryList: {
+    maxHeight: 400
+  },
+  categoryItem: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.gray100
+  },
+  categoryName: {
+    fontSize: 16,
+    color: Colors.gray900,
+    fontWeight: '500'
+  },
+  categoryActions: {
+    flexDirection: 'row',
+    gap: 8
+  },
+  editContainer: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8
+  },
+  iconBtn: {
+    padding: 8
+  }
 })

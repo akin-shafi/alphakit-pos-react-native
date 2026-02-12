@@ -15,13 +15,13 @@ import {
 } from "react-native"
 import { Ionicons } from "@expo/vector-icons"
 import { useAuth } from "../../contexts/AuthContext"
-import { Colors, BusinessThemes } from "../../constants/Colors"
+import { Colors, BusinessThemes, getBusinessTheme } from "../../constants/Colors"
 import { Typography } from "../../constants/Typography"
 import UserService from "../../services/UserService"
 
 export const ProfileScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
   const { user, business, loginSuccess } = useAuth()
-  const theme = business ? BusinessThemes[business.type] : BusinessThemes.default
+  const theme = getBusinessTheme(business?.type)
 
   const [firstName, setFirstName] = useState(user?.first_name || "")
   const [lastName, setLastName] = useState(user?.last_name || "")

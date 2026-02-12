@@ -34,6 +34,10 @@ export const Colors = {
 
   green50: "#ECFDF5",
   blue50: "#EFF6FF",
+  blue200: "#91c0feff",
+  blue600: "#003366ff",
+  blue900: "#003366ff",
+
   purple50: "#F5F3FF",
   red50: "#FEF2F2",
 
@@ -87,4 +91,9 @@ export const BusinessThemes: Record<string, any> = {
     primaryDark: Colors.tealDark,
     primaryLight: Colors.teal50,
   },
+}
+export const getBusinessTheme = (type?: string) => {
+  if (!type) return BusinessThemes.default
+  const normalizedType = type.toLowerCase()
+  return BusinessThemes[normalizedType] || BusinessThemes.default
 }

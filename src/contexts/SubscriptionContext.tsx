@@ -1,18 +1,22 @@
 
 import React, { createContext, useState, useContext, useEffect, useCallback } from "react";
-import { SubscriptionService, Subscription, SubscriptionPlan } from "../services/SubscriptionService";
+import { SubscriptionService, Subscription, SubscriptionPlan, BusinessModule, ModulePlan } from "../services/SubscriptionService";
 import { useAuth } from "./AuthContext";
 
 interface SubscriptionContextType {
   subscription: Subscription | null;
   plans: SubscriptionPlan[];
+  modules: BusinessModule[];
   loading: boolean;
   isSubscribed: boolean;
   isExpired: boolean;
   isGracePeriod: boolean;
   daysRemaining: number;
+  availableModules: ModulePlan[];
+  availableBundles: ModuleBundle[];
+  hasModule: (module: string) => boolean;
   refreshStatus: () => Promise<void>;
-  processSubscription: (planType: string, reference: string) => Promise<void>;
+  processSubscription: (planType: string, reference: string, modules?: string[], bundleCode?: string, promoCode?: string) => Promise<void>;
 }
 
 const SubscriptionContext = createContext<SubscriptionContextType | undefined>(undefined);
@@ -21,23 +25,61 @@ export const SubscriptionProvider: React.FC<{ children: React.ReactNode }> = ({ 
   const { user } = useAuth();
   const [subscription, setSubscription] = useState<Subscription | null>(null);
   const [plans, setPlans] = useState<SubscriptionPlan[]>([]);
+  const [availableModules, setAvailableModules] = useState<ModulePlan[]>([]);
+  const [availableBundles, setAvailableBundles] = useState<ModuleBundle[]>([]);
+  const [modules, setModules] = useState<BusinessModule[]>([]);
   const [loading, setLoading] = useState(true);
 
   const refreshStatus = useCallback(async () => {
-    if (!user) return;
     try {
       setLoading(true);
-      const [status, activePlans] = await Promise.all([
+      
+      if (!user) {
+        // Only fetch pricing if no user (for onboarding)
+        const pricing = await SubscriptionService.getPricing();
+        setPlans(pricing.plans);
+        setAvailableModules(pricing.modules || []);
+        setAvailableBundles(pricing.bundles || []);
+        return;
+      }
+
+      // Super admins bypass subscription checks
+      if (user.role === "super_admin") {
+        setLoading(false);
+        setSubscription({
+          id: 0,
+          business_id: 0,
+          plan_type: "ADMIN",
+          status: "ACTIVE",
+          start_date: new Date().toISOString(),
+          end_date: new Date(2099, 11, 31).toISOString(),
+          amount_paid: 0,
+          payment_method: "ADMIN",
+          payment_reference: "SUPER_ADMIN_ACCESS",
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        } as any);
+        setModules([]);
+        setPlans([]);
+        return;
+      }
+
+      const [status, pricing] = await Promise.all([
         SubscriptionService.getStatus(),
-        SubscriptionService.getPlans(),
+        SubscriptionService.getPricing(),
       ]);
       
       if ("status" in status && status.status === "NONE") {
         setSubscription(null);
+        setModules([]);
       } else {
-        setSubscription(status as Subscription);
+        const statusData = status as any;
+        setSubscription(statusData.subscription || statusData);
+        setModules(statusData.modules || []);
       }
-      setPlans(activePlans);
+      setPlans(pricing.plans);
+      setAvailableModules(pricing.modules || []);
+      setAvailableBundles(pricing.bundles || []);
     } catch (error) {
       console.error("Failed to fetch subscription status:", error);
     } finally {
@@ -49,10 +91,10 @@ export const SubscriptionProvider: React.FC<{ children: React.ReactNode }> = ({ 
     refreshStatus();
   }, [refreshStatus]);
 
-  const processSubscription = async (planType: string, reference: string) => {
+  const processSubscription = async (planType: string, reference: string, modules?: string[], bundleCode?: string, promoCode?: string) => {
     try {
       setLoading(true);
-      await SubscriptionService.subscribe(planType, reference);
+      await SubscriptionService.subscribe(planType, reference, modules, bundleCode, promoCode);
       await refreshStatus();
     } catch (error) {
       console.error("Subscription failed:", error);
@@ -63,23 +105,31 @@ export const SubscriptionProvider: React.FC<{ children: React.ReactNode }> = ({ 
   };
 
   const isSubscribed = subscription?.status === "ACTIVE" || subscription?.status === "GRACE_PERIOD";
-  const isExpired = subscription?.status === "EXPIRED";
+  const isExpired = subscription?.status === "EXPIRED" || subscription?.status === "PENDING_PAYMENT";
   const isGracePeriod = subscription?.status === "GRACE_PERIOD";
   
   const daysRemaining = subscription?.end_date 
     ? Math.max(0, Math.ceil((new Date(subscription.end_date).getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24)))
     : 0;
 
+  const hasModule = (module: string): boolean => {
+    return modules.some(m => m.module === module && m.is_active);
+  };
+
   return (
     <SubscriptionContext.Provider
       value={{
         subscription,
         plans,
+        modules,
         loading,
         isSubscribed,
         isExpired,
         isGracePeriod,
         daysRemaining,
+        availableModules,
+        availableBundles,
+        hasModule,
         refreshStatus,
         processSubscription,
       }}
