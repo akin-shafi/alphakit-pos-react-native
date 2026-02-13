@@ -1,6 +1,8 @@
 
 import React, { createContext, useContext, useEffect, useState } from "react"
 import AsyncStorage from "@react-native-async-storage/async-storage"
+import { useAuth } from "./AuthContext"
+import { AuthService } from "../services/AuthService"
 
 interface SettingsContextType {
   enableTables: boolean
@@ -28,6 +30,7 @@ interface SettingsContextType {
 const SettingsContext = createContext<SettingsContextType | undefined>(undefined)
 
 export const SettingsProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const { business, setBusiness } = useAuth()
   const [enableTables, setEnableTables] = useState(false)
   const [enableDrafts, setEnableDrafts] = useState(false)
   const [enableTax, setEnableTax] = useState(false)
@@ -43,6 +46,19 @@ export const SettingsProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     loadSettings()
   }, [])
 
+  useEffect(() => {
+    if (business) {
+      if (business.table_management_enabled !== undefined && business.table_management_enabled !== enableTables) {
+        setEnableTables(business.table_management_enabled)
+        AsyncStorage.setItem("enableTables", String(business.table_management_enabled))
+      }
+      if (business.save_to_draft_enabled !== undefined && business.save_to_draft_enabled !== enableDrafts) {
+        setEnableDrafts(business.save_to_draft_enabled)
+        AsyncStorage.setItem("enableDrafts", String(business.save_to_draft_enabled))
+      }
+    }
+  }, [business])
+
   const loadSettings = async () => {
     try {
       const tables = await AsyncStorage.getItem("enableTables")
@@ -56,8 +72,11 @@ export const SettingsProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       const pSize = await AsyncStorage.getItem("printerPaperSize")
       const pAuto = await AsyncStorage.getItem("autoPrint")
       
-      setEnableTables(tables === "true")
-      setEnableDrafts(drafts === "true")
+      // Only set if business context hasn't already (or fallback)
+      if (!business) {
+        setEnableTables(tables === "true")
+        setEnableDrafts(drafts === "true")
+      }
       setEnableTax(tax === "true")
       setTaxRate(rate ? parseFloat(rate) : 0)
 
@@ -75,12 +94,30 @@ export const SettingsProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     const newValue = !enableTables
     setEnableTables(newValue)
     await AsyncStorage.setItem("enableTables", String(newValue))
+    
+    if (business?.id) {
+      try {
+        const updatedBiz = await AuthService.updateBusiness(business.id, { table_management_enabled: newValue })
+        setBusiness(updatedBiz)
+      } catch (e) {
+        console.warn("Failed to sync tables setting", e)
+      }
+    }
   }
 
   const toggleDrafts = async () => {
     const newValue = !enableDrafts
     setEnableDrafts(newValue)
     await AsyncStorage.setItem("enableDrafts", String(newValue))
+
+    if (business?.id) {
+      try {
+        const updatedBiz = await AuthService.updateBusiness(business.id, { save_to_draft_enabled: newValue })
+        setBusiness(updatedBiz)
+      } catch (e) {
+        console.warn("Failed to sync drafts setting", e)
+      }
+    }
   }
 
   const toggleTax = async () => {

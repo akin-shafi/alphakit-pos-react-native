@@ -127,6 +127,17 @@ export const AuthService = {
   removeIngredient: async (id: string): Promise<any> => {
     const res = await apiClient.delete(`/recipes/${id}`);
     return res.data;
+  },
+
+  getProfile: async (): Promise<LoginResponse> => {
+    const res = await apiClient.get("/auth/profile");
+    return {
+      user: res.data.user,
+      tenant: res.data.tenant,
+      business: res.data.business,
+      accessToken: res.data.access_token,
+      refreshToken: res.data.refresh_token,
+    };
   }
 };
 

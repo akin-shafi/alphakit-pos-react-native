@@ -35,6 +35,8 @@ export interface Business {
   is_seeded?: boolean
   subscription_status?: string
   active_modules?: string[]
+  table_management_enabled?: boolean
+  save_to_draft_enabled?: boolean
   created_at?: string
   updated_at?: string
 }

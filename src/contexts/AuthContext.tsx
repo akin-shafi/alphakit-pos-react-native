@@ -75,8 +75,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       
       if (userStr) {
         startInactivityTimer()
-        // Check for active shift in background
+        // Check for active shift and profile in background
         checkActiveShift()
+        checkProfile()
       }
     } catch (e) {
       console.warn("Failed to restore session", e)
@@ -108,6 +109,25 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     } catch (e) {
       console.log("Failed to check active shift", e)
       // Don't fail the whole app for this
+    }
+  }
+
+  const checkProfile = async () => {
+    try {
+      const res = await AuthService.getProfile()
+      
+      setUser(res.user)
+      setTenant(res.tenant)
+      setBusiness(res.business) // This will trigger SettingsContext to update!
+
+      // Update storage silently
+      await AsyncStorage.multiSet([
+        ["user", JSON.stringify(res.user)],
+        ["tenant", JSON.stringify(res.tenant)],
+        ["business", JSON.stringify(res.business)],
+      ])
+    } catch (e) {
+      console.log("Failed to refresh profile in background", e)
     }
   }
 
