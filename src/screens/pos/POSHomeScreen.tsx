@@ -12,10 +12,13 @@ import { Typography } from "../../constants/Typography"
 import { formatCurrency } from "../../utils/Formatter"
 import { SubscriptionBanner } from "../../components/SubscriptionBanner"
 import { useSettings } from "../../contexts/SettingsContext"
+import { GasSaleModal } from "../../components/GasSaleModal"
 
 export const POSHomeScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
   const { business, user, logout, activeShift, checkActiveShift } = useAuth()
   const { items, addItem } = useCart()
+  const [gasModalVisible, setGasModalVisible] = React.useState(false)
+  const [selectedGasProduct, setSelectedGasProduct] = React.useState<any>(null)
 
   useEffect(() => {
     checkActiveShift()
@@ -134,7 +137,15 @@ export const POSHomeScreen: React.FC<{ navigation: any }> = ({ navigation }) => 
               ]} 
               onPress={() => {
                 if (!isOutOfStock) {
-                  handleActionWithShiftCheck(() => addItem(item))
+                  const isGasBaseProduct = item.sku === "GAS-UNIT-10G" || item.name.toLowerCase().includes("per 10g");
+                  const isLPGStation = business?.type === "LPG_STATION" || business?.type === "gas_station";
+
+                  if (isLPGStation && isGasBaseProduct) {
+                    setSelectedGasProduct(item);
+                    setGasModalVisible(true);
+                  } else {
+                    handleActionWithShiftCheck(() => addItem(item));
+                  }
                 }
               }}
               disabled={isOutOfStock}
@@ -197,9 +208,7 @@ export const POSHomeScreen: React.FC<{ navigation: any }> = ({ navigation }) => 
           )
         }
       />
-
-
-
+      
       {/* Floating Cart Button */}
       {cartItemCount > 0 && (
         <TouchableOpacity style={styles.cartButton} onPress={() => handleActionWithShiftCheck(() => navigation.navigate("Cart"))}>
@@ -209,9 +218,22 @@ export const POSHomeScreen: React.FC<{ navigation: any }> = ({ navigation }) => 
           </View>
         </TouchableOpacity>
       )}
+      {/* Gas Sale Modal */}
+      <GasSaleModal 
+        visible={gasModalVisible}
+        onClose={() => setGasModalVisible(false)}
+        onAddToCart={(quantity) => {
+             if (selectedGasProduct) {
+                 handleActionWithShiftCheck(() => addItem(selectedGasProduct, quantity));
+             }
+        }}
+        pricePerUnit={selectedGasProduct?.price || 0}
+      />
     </View>
   )
 }
+
+
 
 const styles = StyleSheet.create({
   container: {

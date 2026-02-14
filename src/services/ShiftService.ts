@@ -21,6 +21,14 @@ export interface Shift {
   expected_cash: number
   cash_variance: number
   notes?: string
+  readings?: ShiftReading[]
+}
+
+export interface ShiftReading {
+  id: number
+  product_id: number
+  closing_value: number
+  difference: number
 }
 
 export interface ShiftSummary {
@@ -39,11 +47,12 @@ export const ShiftService = {
     return response.data.data
   },
 
-  endShift: async (shiftId: number, endCash: number, notes?: string): Promise<Shift> => {
-    const response = await apiClient.post(`/shifts/${shiftId}/end`, {
-      end_cash: endCash,
-      notes: notes
-    })
+  endShift: async (shiftId: number, endCash: number, readings?: any[], notes?: string): Promise<Shift> => {
+    const payload: any = { end_cash: endCash };
+    if (notes) payload.notes = notes;
+    if (readings) payload.readings = readings;
+
+    const response = await apiClient.post(`/shifts/${shiftId}/end`, payload)
     return response.data.data
   },
 

@@ -22,6 +22,7 @@ export interface Business {
     | "restaurant"
     | "pharmacy"
     | "gas_station"
+    | "LPG_STATION"
     | "boutique"
     | "retail"
     | "bar"

@@ -142,7 +142,10 @@ export const DashboardScreen: React.FC<{ navigation: any }> = ({ navigation }) =
 
         <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
           {/* User Profile Card */}
-          <View style={[styles.userCard, { backgroundColor: theme.primary }]}>
+          <TouchableOpacity 
+            style={[styles.userCard, { backgroundColor: theme.primary }]}
+            onPress={() => navigation.navigate("Profile")}
+          >
             <View style={styles.userInfo}>
               <View style={styles.avatar}>
                 <Text style={styles.avatarText}>
@@ -155,7 +158,28 @@ export const DashboardScreen: React.FC<{ navigation: any }> = ({ navigation }) =
               </View>
             </View>
             <Ionicons name="chevron-forward" size={20} color={Colors.white} opacity={0.5} />
-          </View>
+          </TouchableOpacity>
+
+          {/* How It Works Banner */}
+          {!isSuperAdmin && (
+            <TouchableOpacity 
+              style={styles.howItWorksBanner}
+              onPress={() => navigation.navigate("HowItWorks")}
+            >
+              <View style={styles.howItWorksContent}>
+                  <View style={styles.howItWorksIconContainer}>
+                    <Ionicons name="bulb-outline" size={24} color={Colors.teal} />
+                  </View>
+                  <View style={styles.howItWorksTextContainer}>
+                      <Text style={styles.howItWorksTitle}>How It Works</Text>
+                      <Text style={styles.howItWorksSubtitle}>
+                        Quick guide for {business?.type?.replace('_', ' ') || 'your business'}
+                      </Text>
+                  </View>
+              </View>
+              <Ionicons name="chevron-forward" size={20} color={Colors.gray400} />
+            </TouchableOpacity>
+          )}
 
           {/* Super Admin Notice */}
           {isSuperAdmin && (
@@ -395,5 +419,43 @@ const styles = StyleSheet.create({
     fontWeight: Typography.semibold,
     color: Colors.teal,
     fontFamily: "monospace",
+  },
+  howItWorksBanner: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    backgroundColor: Colors.white,
+    padding: 16,
+    borderRadius: 16,
+    marginBottom: 24,
+    borderWidth: 1,
+    borderColor: Colors.gray200,
+    borderLeftWidth: 4,
+    borderLeftColor: Colors.teal,
+  },
+  howItWorksContent: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+  },
+  howItWorksIconContainer: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: Colors.tealLight,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  howItWorksTextContainer: {
+    flex: 1,
+  },
+  howItWorksTitle: {
+    fontSize: Typography.base,
+    fontWeight: Typography.bold,
+    color: Colors.gray900,
+  },
+  howItWorksSubtitle: {
+    fontSize: Typography.xs,
+    color: Colors.gray500,
   },
 })

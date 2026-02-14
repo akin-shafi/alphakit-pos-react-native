@@ -8,6 +8,7 @@ import { Typography } from "../../constants/Typography"
 import { formatCurrency } from "../../utils/Formatter"
 import { Shift, ShiftService } from "../../services/ShiftService"
 import { RolePermissions } from "../../constants/Roles"
+import { ReadingInputModal } from "../../components/ReadingInputModal"
 
 export const ShiftManagementScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
   const { user, business, activeShift, checkActiveShift } = useAuth()
@@ -19,6 +20,8 @@ export const ShiftManagementScreen: React.FC<{ navigation: any }> = ({ navigatio
   const [shifts, setShifts] = useState<Shift[]>([])
   const [loading, setLoading] = useState(false)
   const [processing, setProcessing] = useState(false)
+  const [readingModalVisible, setReadingModalVisible] = useState(false)
+  const [endShiftAmount, setEndShiftAmount] = useState<number>(0)
 
   useEffect(() => {
     checkActiveShift()
@@ -85,45 +88,55 @@ export const ShiftManagementScreen: React.FC<{ navigation: any }> = ({ navigatio
         { text: "Cancel", style: "cancel" },
         { 
           text: "End Shift", 
-          onPress: async (amount) => {
-             const endAmount = parseFloat(amount || "0")
-              if (isNaN(endAmount) || endAmount < 0) {
-                Alert.alert("Invalid Amount", "Please enter a valid ending cash amount")
-                return
+              onPress: async (amount) => {
+                 const endAmount = parseFloat(amount || "0")
+                  if (isNaN(endAmount) || endAmount < 0) {
+                    Alert.alert("Invalid Amount", "Please enter a valid ending cash amount")
+                    return
+                  }
+    
+                  // GAS STATION LOGIC
+                  // If Business Type is LPG_STATION, ask for Meter Reading next
+                  // GAS STATION LOGIC
+                  // If Business Type is LPG_STATION, ask for Meter Reading next
+                  if (business?.type === "LPG_STATION" || business?.type === "gas_station") {
+                       setEndShiftAmount(endAmount);
+                       setReadingModalVisible(true);
+                  } else {
+                     processEndShift(activeShift.id, endAmount)
+                  }
               }
+            }
+          ],
+          "plain-text",
+          "0",
+          "numeric"
+        )
+      }
 
-              setProcessing(true)
-              try {
-                // Call end shift logic
-                const summary = await ShiftService.endShift(activeShift.id, endAmount)
-                
-                await checkActiveShift() 
-                await fetchShifts()
+    // Helper to process the final API call
+    const processEndShift = async (shiftId: number, endAmount: number, closingReading?: number) => {
+        setProcessing(true);
+        try {
+            // Prepare readings payload if exists
+            let readings = undefined;
+            if (closingReading) {
+               // Assuming Product ID 0 or we find the GAS-UNIT product ID. 
+               // For this mock, we send a generic reading. In production, we'd query the specific product ID.
+               readings = [{ product_id: 1, closing_value: closingReading }]; 
+            }
 
-                // Calculate discrepancy (simple logic for now, backend does details)
-                // Note: summary might return updated shift object, let's assume it matches ShiftSummary or Shift
-                // Based on Service implementation, it returns Shift? Wait, logic said ShiftSummary...
-                // The service says: Promise<Shift> for endShift. Wait, my service implementation returned response.data.data
-                // The backend controller returns JSON(shift) usually. 
-                // Let's assume standard Shift object returned.
-                // Summary calculation might need extra call if not included.
-                // Actually, let's just show success for now.
-                
-                Alert.alert("Shift Closed", "Shift ended successfully.")
-
-              } catch (error: any) {
-               Alert.alert("Error", error.response?.data?.error || "Failed to end shift")
-              } finally {
-                setProcessing(false)
-              }
-          }
+            const summary = await ShiftService.endShift(shiftId, endAmount, readings);
+            
+            await checkActiveShift();
+            await fetchShifts();
+            Alert.alert("Shift Closed", "Shift ended successfully.");
+        } catch (error: any) {
+            Alert.alert("Error", error.response?.data?.error || "Failed to end shift");
+        } finally {
+            setProcessing(false);
         }
-      ],
-      "plain-text",
-      "0",
-      "numeric"
-    )
-  }
+    }
 
   const renderShiftItem = ({ item }: { item: Shift }) => {
     const isCurrentUser = item.user_id === user?.id;
@@ -176,12 +189,24 @@ export const ShiftManagementScreen: React.FC<{ navigation: any }> = ({ navigatio
             </View>
           )}
         </View>
-        <View style={[styles.shiftDetails, { borderTopWidth: 0, paddingTop: 8 }]}>
-          <View style={styles.detailItem}>
-            <Text style={styles.detailLabel}>Total Sales</Text>
-            <Text style={[styles.detailValue, { color: Colors.teal }]}>{formatCurrency(item.total_sales, business?.currency)}</Text>
+          {item.readings && item.readings.length > 0 && (
+            <View style={[styles.shiftDetails, { borderTopWidth: 0, paddingTop: 8 }]}>
+              <View style={styles.detailItem}>
+                <Text style={styles.detailLabel}>Pump Readings</Text>
+                {item.readings.map((r) => (
+                  <Text key={r.id} style={styles.detailValue}>
+                    Closing: {r.closing_value}
+                  </Text>
+                ))}
+              </View>
+            </View>
+          )}
+          <View style={[styles.shiftDetails, { borderTopWidth: 0, paddingTop: 8 }]}>
+            <View style={styles.detailItem}>
+              <Text style={styles.detailLabel}>Total Sales</Text>
+              <Text style={[styles.detailValue, { color: Colors.teal }]}>{formatCurrency(item.total_sales, business?.currency)}</Text>
+            </View>
           </View>
-        </View>
       </View>
     )
   }
@@ -260,6 +285,23 @@ export const ShiftManagementScreen: React.FC<{ navigation: any }> = ({ navigatio
           )}
         </>
       )}
+      {/* Reading Input Modal */}
+      <ReadingInputModal 
+        visible={readingModalVisible}
+        onClose={() => setReadingModalVisible(false)}
+        onSubmit={(reading) => {
+            setReadingModalVisible(false);
+            if (activeShift) {
+                processEndShift(activeShift.id, endShiftAmount, reading);
+            }
+        }}
+        onSkip={() => {
+            setReadingModalVisible(false);
+             if (activeShift) {
+                processEndShift(activeShift.id, endShiftAmount);
+            }
+        }}
+      />
     </View>
   )
 }

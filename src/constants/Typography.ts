@@ -8,6 +8,7 @@ const TypographyValues = Object.freeze({
   base: 16,
   lg: 18,
   xl: 20,
+  xxl: 22,
   "2xl": 24,
   "3xl": 30,
   "4xl": 36,
