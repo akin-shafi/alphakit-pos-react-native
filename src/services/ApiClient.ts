@@ -54,10 +54,10 @@ apiClient.interceptors.request.use(
 
     // Console Logging
     const fullUrl = `${config.baseURL || ""}${config.url}`;
-    console.log(`[API REQUEST] ${config.method?.toUpperCase()} ${fullUrl}`, {
-      headers: config.headers,
-      data: config.data,
-    });
+    // console.log(`[API REQUEST] ${config.method?.toUpperCase()} ${fullUrl}`, {
+    //   headers: config.headers,
+    //   data: config.data,
+    // });
 
     return config;
   },

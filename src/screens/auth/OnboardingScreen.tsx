@@ -1,4 +1,3 @@
-
 import React, { useState, useMemo } from "react"
 import {
   View,
@@ -24,12 +23,19 @@ import { Typography } from "../../constants/Typography"
 import { Toast } from "../../components/Toast"
 
 const BUSINESS_TYPES = [
-  { value: "restaurant", label: "Restaurant", icon: "restaurant" as const },
-  { value: "pharmacy", label: "Pharmacy", icon: "medical" as const },
-  { value: "retail", label: "Retail Store", icon: "cart" as const },
-  { value: "supermarket", label: "Supermarket", icon: "basket" as const },
-  { value: "boutique", label: "Boutique", icon: "shirt" as const },
-  { value: "other", label: "Other", icon: "business" as const },
+  { value: "restaurant",  label: "Restaurant / Fast Food",     icon: "restaurant" as const },
+  { value: "bar",         label: "Bar / Night Club",           icon: "wine" as const },
+  { value: "supermarket", label: "Supermarket",                icon: "basket" as const },
+  { value: "pharmacy",    label: "Pharmacy / Chemist",         icon: "medical" as const },
+  { value: "retail",      label: "Retail Store / Shop",        icon: "cart" as const },
+  { value: "boutique",    label: "Boutique / Fashion Store",   icon: "shirt" as const },
+  { value: "bakery",      label: "Bakery / Confectionery",     icon: "cafe" as const },
+  { value: "fuel_station", label: "Fuel / Petrol Station",     icon: "car-sport" as const },
+  { value: "lpg_station", label: "LPG / Cooking Gas Station",  icon: "flame" as const },
+  { value: "hotel",       label: "Hotel / Guest House / Lodge", icon: "bed" as const },
+  { value: "clinic",      label: "Clinic / Medical Practice",  icon: "pulse" as const },
+  { value: "lounge",      label: "Premium Lounge",             icon: "cocktail" as const },
+  { value: "other",       label: "Other Business",             icon: "business" as const },
 ]
 
 const CURRENCIES = [
@@ -138,20 +144,23 @@ export const OnboardingScreen = ({ navigation }: any) => {
     return false
   }, [step, business, admin])
 
+  const [basePlanType, setBasePlanType] = useState('TRIAL')
+  
   const submit = async () => {
     setLoading(true)
     try {
+      // Optional: Normalize to uppercase if your backend strictly expects uppercase
+      // const backendType = business.type.toUpperCase()
+
       await registerBusiness({
         business: {
           name: business.name.trim(),
-          type: business.type,
+          type: business.type.toUpperCase(), // ← recommended – match backend enum
           address: business.address.trim(),
           city: business.city.trim(),
           email: business.email.trim() || undefined,
           phone: business.phone.trim() || undefined,
           currency: business.currency,
-          modules: selectedModules,
-          skip_trial: skipTrial,
         },
         user: {
           first_name: admin.firstName.trim(),
@@ -159,16 +168,18 @@ export const OnboardingScreen = ({ navigation }: any) => {
           email: admin.email.trim(),
           password: admin.password,
         },
+        modules: selectedModules,
+        skip_trial: skipTrial,
+        base_plan_type: basePlanType,
+        use_sample_data: useSampleData,
       })
 
       if (useSampleData) {
         try {
-          // We need business ID for seeding, but registerBusiness returns it.
-          // However, the seeding call needs the business object to be in state.
-          // Since we are auto-logged in by registerBusiness, we can call seed.
-          await AuthService.seedSampleData(0, business.type.toUpperCase()); // businessId is handled by header in backend
+          // Seed sample data – business ID usually handled via auth header after login
+          await AuthService.seedSampleData(0, business.type.toUpperCase())
         } catch (seedError) {
-          console.warn("Failed to seed sample data:", seedError);
+          console.warn("Failed to seed sample data:", seedError)
         }
       }
 
@@ -215,7 +226,7 @@ export const OnboardingScreen = ({ navigation }: any) => {
               <>
                 <Input
                   label="Business Name"
-                  placeholder="e.g. Joe's Coffee Shop"
+                  placeholder="e.g. Joe's Pepper Soup & Bar"
                   value={business.name}
                   onChangeText={(v) => {
                     setBusiness({ ...business, name: v })
@@ -255,7 +266,7 @@ export const OnboardingScreen = ({ navigation }: any) => {
               <>
                 <Input
                   label="Business Address"
-                  placeholder="123 Main Street"
+                  placeholder="123 Lagos-Abeokuta Expressway"
                   value={business.address}
                   onChangeText={(v) => {
                     setBusiness({ ...business, address: v })
@@ -266,7 +277,7 @@ export const OnboardingScreen = ({ navigation }: any) => {
 
                 <Input
                   label="City"
-                  placeholder="New York"
+                  placeholder="Ikeja, Lagos"
                   value={business.city}
                   onChangeText={(v) => {
                     setBusiness({ ...business, city: v })
@@ -277,7 +288,7 @@ export const OnboardingScreen = ({ navigation }: any) => {
 
                 <Input
                   label="Business Phone (optional)"
-                  placeholder="+1 (555) 123-4567"
+                  placeholder="+234 803 123 4567"
                   value={business.phone}
                   onChangeText={(v) => {
                     setBusiness({ ...business, phone: v })
@@ -289,7 +300,7 @@ export const OnboardingScreen = ({ navigation }: any) => {
 
                 <Input
                   label="Business Email (optional)"
-                  placeholder="contact@business.com"
+                  placeholder="info@joespepper.com"
                   value={business.email}
                   onChangeText={(v) => {
                     setBusiness({ ...business, email: v })
@@ -332,7 +343,7 @@ export const OnboardingScreen = ({ navigation }: any) => {
               <>
                 <Input
                   label="First Name"
-                  placeholder="John"
+                  placeholder="Chinedu"
                   value={admin.firstName}
                   onChangeText={(v) => {
                     setAdmin({ ...admin, firstName: v })
@@ -343,7 +354,7 @@ export const OnboardingScreen = ({ navigation }: any) => {
 
                 <Input
                   label="Last Name"
-                  placeholder="Doe"
+                  placeholder="Okeke"
                   value={admin.lastName}
                   onChangeText={(v) => {
                     setAdmin({ ...admin, lastName: v })
@@ -354,7 +365,7 @@ export const OnboardingScreen = ({ navigation }: any) => {
 
                 <Input
                   label="Your Email"
-                  placeholder="john@example.com"
+                  placeholder="chinedu.okeke@gmail.com"
                   value={admin.email}
                   onChangeText={(v) => {
                     setAdmin({ ...admin, email: v })
@@ -394,66 +405,99 @@ export const OnboardingScreen = ({ navigation }: any) => {
             )}
 
             {step === 4 && (
-              <View>
-                <Text style={styles.sectionTitle}>Business Power-Ups</Text>
-                <Text style={styles.sectionSubtitle}>Choose the features that fit your business needs. 14 days free trial included!</Text>
-                
-                <View style={styles.modulesGrid}>
-                  {availableModules.map((mod) => (
-                    <TouchableOpacity
-                      key={mod.type}
-                      style={[
-                        styles.moduleCard,
-                        selectedModules.includes(mod.type) && styles.moduleCardActive
-                      ]}
-                      onPress={() => {
-                        setSelectedModules(prev => 
-                          prev.includes(mod.type) 
-                            ? prev.filter(m => m !== mod.type) 
-                            : [...prev, mod.type]
-                        )
-                      }}
-                    >
-                      <View style={styles.moduleHeader}>
-                        <Ionicons 
-                          name={selectedModules.includes(mod.type) ? "checkbox" : "square-outline"} 
-                          size={24} 
-                          color={selectedModules.includes(mod.type) ? Colors.teal : Colors.gray400} 
-                        />
-                        <Text style={styles.modulePrice}>₦{mod.price.toLocaleString()}/mo</Text>
-                      </View>
-                      <Text style={styles.moduleName}>{mod.name}</Text>
-                      <Text style={styles.moduleDesc}>{mod.description}</Text>
-                    </TouchableOpacity>
-                  ))}
+                <View>
+                  <Text style={styles.sectionTitle}>Business Power-Ups</Text>
+                  <Text style={styles.sectionSubtitle}>Choose the features that fit your business needs.</Text>
+                  
+                  <View style={styles.modeToggleContainer}>
+                  <TouchableOpacity 
+                    style={[styles.modeButton, !basePlanType || basePlanType === 'TRIAL' ? styles.modeButtonActive : null]}
+                    onPress={() => setBasePlanType('TRIAL')}
+                  >
+                     <Text style={[styles.modeButtonText, !basePlanType || basePlanType === 'TRIAL' ? styles.modeButtonTextActive : null]}>Growing Business</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity 
+                    style={[styles.modeButton, basePlanType === 'SERVICE_MONTHLY' ? styles.modeButtonActive : null]}
+                    onPress={() => {
+                        setBasePlanType('SERVICE_MONTHLY');
+                        setSelectedModules([]); // Clear modules for basic plan
+                    }}
+                  >
+                     <Text style={[styles.modeButtonText, basePlanType === 'SERVICE_MONTHLY' ? styles.modeButtonTextActive : null]}>Starter / Basic</Text>
+                  </TouchableOpacity>
                 </View>
+
+                {basePlanType === 'SERVICE_MONTHLY' ? (
+                    <View style={styles.basicPlanCard}>
+                        <View style={styles.basicPlanIcon}>
+                           <Ionicons name="storefront" size={40} color={Colors.teal} />
+                        </View>
+                        <Text style={styles.basicPlanTitle}>Basic Sales Mode</Text>
+                        <Text style={styles.basicPlanDesc}>Perfect for small shops & kiosks. Track sales, print receipts, and manage a small catalog of up to 25 items.</Text>
+                        <View style={styles.basicPlanBadge}>
+                           <Ionicons name="shield-checkmark" size={14} color={Colors.teal} />
+                           <Text style={styles.basicPlanBadgeText}>Essential Features Only</Text>
+                        </View>
+                    </View>
+                ) : (
+                    <View style={styles.modulesGrid}>
+                      {availableModules.map((mod) => (
+                        <TouchableOpacity
+                          key={mod.type}
+                          style={[
+                            styles.moduleCard,
+                            selectedModules.includes(mod.type) && styles.moduleCardActive
+                          ]}
+                          onPress={() => {
+                            setSelectedModules(prev => 
+                              prev.includes(mod.type) 
+                                ? prev.filter(m => m !== mod.type) 
+                                : [...prev, mod.type]
+                            )
+                          }}
+                        >
+                          <View style={styles.moduleHeader}>
+                            <Ionicons 
+                              name={selectedModules.includes(mod.type) ? "checkbox" : "square-outline"} 
+                              size={24} 
+                              color={selectedModules.includes(mod.type) ? Colors.teal : Colors.gray400} 
+                            />
+                            <Text style={styles.modulePrice}>₦{mod.price.toLocaleString()}/mo</Text>
+                          </View>
+                          <Text style={styles.moduleName}>{mod.name}</Text>
+                          <Text style={styles.moduleDesc}>{mod.description}</Text>
+                        </TouchableOpacity>
+                      ))}
+                    </View>
+                )}
 
                 {/* Billing Priority Selector */}
                 <View style={styles.billingPriorityContainer}>
-                   <Text style={styles.billingPriorityTitle}>Billing Priority</Text>
-                   <View style={styles.billingToggle}>
-                      <TouchableOpacity 
-                        style={[styles.billingOption, !skipTrial && styles.billingOptionActive]}
-                        onPress={() => setSkipTrial(false)}
-                      >
-                         <Ionicons name="time-outline" size={18} color={!skipTrial ? Colors.white : Colors.teal} />
-                         <Text style={[styles.billingOptionText, !skipTrial && styles.billingOptionTextActive]}>14-Day Trial</Text>
-                      </TouchableOpacity>
-                      <TouchableOpacity 
-                        style={[styles.billingOption, skipTrial && styles.billingOptionActiveImmediate]}
-                        onPress={() => setSkipTrial(true)}
-                      >
-                         <Ionicons name="flash-outline" size={18} color={skipTrial ? Colors.white : Colors.warning} />
-                         <Text style={[styles.billingOptionText, skipTrial && styles.billingOptionTextActiveImmediate]}>Pay Immediately</Text>
-                      </TouchableOpacity>
-                   </View>
-                   <Text style={styles.billingHint}>
-                      {skipTrial 
-                        ? "Bypass verification delays with immediate account activation." 
-                        : "Explore every feature with zero financial commitment for 2 weeks."}
-                   </Text>
+                  <Text style={styles.billingPriorityTitle}>Billing Priority</Text>
+                  <View style={styles.billingToggle}>
+                    <TouchableOpacity 
+                      style={[styles.billingOption, !skipTrial && styles.billingOptionActive]}
+                      onPress={() => setSkipTrial(false)}
+                    >
+                      <Ionicons name="time-outline" size={18} color={!skipTrial ? Colors.white : Colors.teal} />
+                      <Text style={[styles.billingOptionText, !skipTrial && styles.billingOptionTextActive]}>14-Day Trial</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity 
+                      style={[styles.billingOption, skipTrial && styles.billingOptionActiveImmediate]}
+                      onPress={() => setSkipTrial(true)}
+                    >
+                      <Ionicons name="flash-outline" size={18} color={skipTrial ? Colors.white : Colors.warning} />
+                      <Text style={[styles.billingOptionText, skipTrial && styles.billingOptionTextActiveImmediate]}>Pay Immediately</Text>
+                    </TouchableOpacity>
+                  </View>
+                  <Text style={styles.billingHint}>
+                    {skipTrial 
+                      ? "Bypass verification delays with immediate account activation." 
+                      : "Explore every feature with zero financial commitment for 2 weeks."}
+                  </Text>
                 </View>
               </View>
+
             )}
 
             {step === 5 && (
@@ -464,7 +508,8 @@ export const OnboardingScreen = ({ navigation }: any) => {
                 <Text style={styles.sampleDataTitle}>Populate Sample Data?</Text>
                 <Text style={styles.sampleDataText}>
                   Would you like to pre-populate your account with sample products, categories, and inventory based on the
-                  {BUSINESS_TYPES.find((t) => t.value === business.type)?.label || "selected"} business type?
+                  {" "}
+                  {BUSINESS_TYPES.find((t) => t.value === business.type)?.label || "selected business type"}?
                 </Text>
 
                 <View style={styles.choiceContainer}>
@@ -525,6 +570,7 @@ export const OnboardingScreen = ({ navigation }: any) => {
     </KeyboardAvoidingView>
   )
 }
+
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: "#fff" },
@@ -866,5 +912,56 @@ const styles = StyleSheet.create({
     color: Colors.gray500,
     textAlign: "center",
     fontStyle: "italic",
+  },
+
+  basicPlanCard: {
+    alignItems: 'center',
+    padding: 24,
+    backgroundColor: Colors.gray50,
+    borderRadius: 20,
+    borderWidth: 2,
+    borderColor: Colors.gray200,
+    borderStyle: 'dashed',
+    marginBottom: 20,
+  },
+  basicPlanIcon: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    backgroundColor: Colors.teal + '10',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 12,
+  },
+  basicPlanTitle: {
+    fontSize: 18,
+    fontWeight: '800',
+    color: Colors.gray900,
+    marginBottom: 8,
+  },
+  basicPlanDesc: {
+    fontSize: 13,
+    color: Colors.gray600,
+    textAlign: 'center',
+    lineHeight: 18,
+    marginBottom: 16,
+    paddingHorizontal: 10,
+  },
+  basicPlanBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: Colors.teal + '15',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: Colors.teal + '30',
+  },
+  basicPlanBadgeText: {
+    fontSize: 10,
+    fontWeight: '800',
+    color: Colors.teal,
+    textTransform: 'uppercase',
   },
 })

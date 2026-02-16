@@ -170,7 +170,7 @@ export const SubscriptionCheckoutScreen: React.FC<{ navigation: any }> = ({ navi
       {user && business && (
         <Paystack
           paystackKey={(process.env.EXPO_PUBLIC_PAYSTACK_PUBLIC_KEY as string) || "pk_test_840e6c5354972e6167651084bdd356073167b"}
-          amount={(calculateTotal() * 100).toString()}
+          amount={calculateTotal().toString()}
           billingEmail={user.email}
           billingName={`${user.first_name} ${user.last_name}`}
           currency="NGN"

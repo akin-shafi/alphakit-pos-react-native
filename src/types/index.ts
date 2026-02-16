@@ -68,9 +68,6 @@ export interface RegisterBusinessPayload {
     email?: string
     phone?: string
     currency: string
-    modules?: string[]
-    bundle_code?: string
-    skip_trial?: boolean
   }
   user: {
     first_name: string
@@ -78,6 +75,11 @@ export interface RegisterBusinessPayload {
     email: string
     password: string
   }
+  modules?: string[]
+  bundle_code?: string
+  skip_trial?: boolean
+  base_plan_type?: string
+  use_sample_data?: boolean
 }
 
 export interface RegisterBusinessResponse {
