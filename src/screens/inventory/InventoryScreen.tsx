@@ -11,6 +11,7 @@ import { Input } from "../../components/Input"
 import { Button } from "../../components/Button"
 import { ProductDrawer } from "../../components/ProductDrawer"
 import { AuthService } from "../../services/AuthService"
+import apiClient from "../../services/ApiClient"
 import { Colors, BusinessThemes, getBusinessTheme } from "../../constants/Colors"
 import { Typography } from "../../constants/Typography"
 import { formatCurrency } from "../../utils/Formatter"
@@ -42,6 +43,25 @@ export const InventoryScreen: React.FC<{ navigation: any; route: any }> = ({ nav
   const [drawerVisible, setDrawerVisible] = useState(false)
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null)
   const [drawerMode, setDrawerMode] = useState<"add" | "edit">("add")
+
+  // Bulk Rounds State
+  const [activeRounds, setActiveRounds] = useState<any[]>([])
+  const isIndustrial = business?.type === 'FUEL_STATION' || business?.type === 'LPG_STATION' || business?.active_modules?.includes('BULK_STOCK_MANAGEMENT')
+
+  useEffect(() => {
+    if (isIndustrial) {
+      fetchRounds()
+    }
+  }, [isIndustrial])
+
+  const fetchRounds = async () => {
+    try {
+      const resp = await apiClient.get('/inventory/rounds/active')
+      setActiveRounds(resp.data)
+    } catch (e) {
+      console.log('Failed to fetch rounds')
+    }
+  }
 
   // Category Management State
   const [categoryModalVisible, setCategoryModalVisible] = useState(false)
@@ -303,37 +323,104 @@ export const InventoryScreen: React.FC<{ navigation: any; route: any }> = ({ nav
       <FlatList
         data={filteredProducts}
         keyExtractor={(item) => item.id.toString()}
-        renderItem={({ item }) => (
-          <TouchableOpacity
-            style={styles.productCard}
-            onPress={() => canManage && handleEditProduct(item)}
-            activeOpacity={canManage ? 0.7 : 1}
-          >
-            <View style={styles.productHeader}>
-              <View>
-                <Text style={styles.productName}>{item.name}</Text>
-                <View style={[styles.categoryBadge, { backgroundColor: getCategoryColor(item.category_id) }]}>
-                  <Text style={[styles.categoryText, { color: getCategoryTextColor(item.category_id) }]}>
-                    {getCategoryName(item.category_id)}
-                  </Text>
+        renderItem={({ item }) => {
+          const activeRound = activeRounds.find(r => r.product_id === item.id)
+          const isTracked = item.track_by_round
+
+          return (
+            <TouchableOpacity
+              style={styles.productCard}
+              onPress={() => canManage && handleEditProduct(item)}
+              activeOpacity={canManage ? 0.7 : 1}
+            >
+              <View style={styles.productHeader}>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.productName}>{item.name}</Text>
+                  <View style={{ flexDirection: 'row', gap: 6, alignItems: 'center' }}>
+                     <View style={[styles.categoryBadge, { backgroundColor: getCategoryColor(item.category_id) }]}>
+                        <Text style={[styles.categoryText, { color: getCategoryTextColor(item.category_id) }]}>
+                           {getCategoryName(item.category_id)}
+                        </Text>
+                     </View>
+                     {isTracked && (
+                        <View style={[styles.categoryBadge, { backgroundColor: Colors.teal + '10' }]}>
+                           <Text style={[styles.categoryText, { color: Colors.teal }]}>BULK ROUND</Text>
+                        </View>
+                     )}
+                  </View>
+                </View>
+                <View style={styles.stockSection}>
+                  {isTracked && activeRound ? (
+                    <View style={{ alignItems: 'flex-end' }}>
+                       <Text style={[styles.stockCount, { color: Colors.teal }]}>
+                          {activeRound.remaining_volume.toFixed(2)}
+                       </Text>
+                       <Text style={styles.stockLabel}>{item.unit_of_measure || 'Units'} Left</Text>
+                    </View>
+                  ) : (
+                    <>
+                       <Text style={styles.stockCount}>{item.stock}</Text>
+                       <Text style={styles.stockLabel}>in stock</Text>
+                    </>
+                  )}
                 </View>
               </View>
-              <View style={styles.stockSection}>
-                <Text style={styles.stockCount}>{item.stock}</Text>
-                <Text style={styles.stockLabel}>in stock</Text>
+              {isTracked && activeRound && (
+                <View style={styles.roundProgressContainer}>
+                  <View style={styles.progressBarBg}>
+                    <View 
+                      style={[
+                        styles.progressBarFill, 
+                        { width: `${(activeRound.remaining_volume / activeRound.total_volume) * 100}%` }
+                      ]} 
+                    />
+                  </View>
+                  <Text style={styles.progressText}>
+                    {((activeRound.remaining_volume / activeRound.total_volume) * 100).toFixed(1)}% of round remaining
+                  </Text>
+                </View>
+              )}
+              <View style={styles.productFooter}>
+                <Text style={styles.productPrice}>Price: {formatCurrency(item.price, business?.currency)}</Text>
+                <Text style={styles.productSku}>SKU: {item.sku}</Text>
               </View>
-            </View>
-            <View style={styles.productFooter}>
-              <Text style={styles.productPrice}>Price: {formatCurrency(item.price, business?.currency)}</Text>
-              <Text style={styles.productSku}>SKU: {item.sku}</Text>
-            </View>
-          </TouchableOpacity>
-        )}
+            </TouchableOpacity>
+          );
+        }}
         contentContainerStyle={styles.listContent}
+        ListHeaderComponent={
+          isIndustrial && activeRounds.length > 0 ? (
+            <View style={styles.industrialSummary}>
+              <View style={styles.summaryTop}>
+                 <Ionicons name="stats-chart" size={18} color={Colors.teal} />
+                 <Text style={styles.summaryTitle}>Active Rounds Overview</Text>
+              </View>
+              <RNScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 12 }}>
+                {activeRounds.map(round => {
+                   const prod = products.find(p => p.id === round.product_id)
+                   return (
+                    <View key={round.id} style={styles.roundMiniCard}>
+                      <Text style={styles.miniCardTitle} numberOfLines={1}>{prod?.name || 'Unknown'}</Text>
+                      <Text style={styles.miniCardValue}>
+                        {round.remaining_volume.toFixed(0)} <Text style={{ fontSize: 10 }}>/ {round.total_volume.toFixed(0)}</Text>
+                      </Text>
+                      <View style={[styles.miniProgressBar, { backgroundColor: Colors.gray100 }]}>
+                         <View style={[styles.miniProgressBar, { backgroundColor: Colors.teal, width: `${(round.remaining_volume / round.total_volume) * 100}%` }]} />
+                      </View>
+                    </View>
+                   )
+                })}
+              </RNScrollView>
+            </View>
+          ) : null
+        }
         refreshControl={
           <RefreshControl
             refreshing={inventoryLoading}
-            onRefresh={refreshData}
+            onRefresh={() => {
+              refreshData()
+              if (isIndustrial) fetchRounds()
+            }}
             colors={[Colors.teal]}
             tintColor={Colors.teal}
           />
@@ -798,6 +885,71 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     marginBottom: 20
+  },
+  industrialSummary: {
+    borderRadius: 16,
+    padding: 16,
+    marginBottom: 20,
+    borderWidth: 1,
+    borderColor: Colors.teal + '20',
+    backgroundColor: Colors.teal + '05',
+  },
+  summaryTop: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 12,
+  },
+  summaryTitle: {
+    fontSize: 14,
+    fontWeight: '800',
+    color: Colors.gray900,
+    textTransform: 'uppercase',
+  },
+  roundMiniCard: {
+    backgroundColor: Colors.white,
+    borderRadius: 12,
+    padding: 12,
+    width: 140,
+    borderWidth: 1,
+    borderColor: Colors.gray100,
+  },
+  miniCardTitle: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: Colors.gray700,
+    marginBottom: 4,
+  },
+  miniCardValue: {
+    fontSize: 16,
+    fontWeight: '900',
+    color: Colors.teal,
+    marginBottom: 8,
+  },
+  miniProgressBar: {
+    height: 4,
+    borderRadius: 2,
+  },
+  roundProgressContainer: {
+    marginTop: -8,
+    marginBottom: 12,
+  },
+  progressBarBg: {
+    height: 6,
+    backgroundColor: Colors.gray100,
+    borderRadius: 3,
+    overflow: 'hidden',
+    marginBottom: 4,
+  },
+  progressBarFill: {
+    height: '100%',
+    backgroundColor: Colors.teal,
+    borderRadius: 3,
+  },
+  progressText: {
+    fontSize: 10,
+    color: Colors.gray500,
+    fontWeight: '600',
   },
   modalTitle: {
     fontSize: 20,

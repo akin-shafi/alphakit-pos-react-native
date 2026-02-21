@@ -23,6 +23,7 @@ export interface Business {
     | "pharmacy"
     | "gas_station"
     | "LPG_STATION"
+    | "FUEL_STATION"
     | "boutique"
     | "retail"
     | "bar"
@@ -126,6 +127,8 @@ export interface Product {
   min_stock: number
   image_url?: string
   barcode?: string
+  track_by_round?: boolean
+  unit_of_measure?: string
   active: boolean
   created_at?: string
   updated_at?: string

@@ -56,7 +56,11 @@ export const SubscriptionPlansScreen: React.FC<{ navigation: any }> = ({ navigat
   useEffect(() => {
     if (activeModules.length > 0) {
       setSelectedModules(activeModules.map(m => m.module));
+    } else if (business?.type === 'FUEL_STATION' || business?.type === 'LPG_STATION') {
+      // Auto-recommend for gas stations
+      setSelectedModules(['BULK_STOCK_MANAGEMENT']);
     }
+
     if (subscription) {
       const planType = subscription.plan_type;
       if (planType.includes('ANNUAL')) setBillingCycle('ANNUAL');
@@ -68,7 +72,7 @@ export const SubscriptionPlansScreen: React.FC<{ navigation: any }> = ({ navigat
         setIsBasicMode(true);
       }
     }
-  }, [activeModules, subscription]);
+  }, [activeModules, subscription, business?.type]);
 
   const toggleModule = (moduleType: string) => {
     setSelectedModules(prev => {
@@ -253,6 +257,8 @@ export const SubscriptionPlansScreen: React.FC<{ navigation: any }> = ({ navigat
             <View style={styles.modulesList}>
                 {availableModules.map((mod) => {
                   const isSelected = selectedModules.includes(mod.type);
+                  const isRecommended = (mod.type === 'BULK_STOCK_MANAGEMENT') && (business?.type === 'FUEL_STATION' || business?.type === 'LPG_STATION');
+
                   return (
                     <TouchableOpacity
                       key={mod.type}
@@ -263,7 +269,14 @@ export const SubscriptionPlansScreen: React.FC<{ navigation: any }> = ({ navigat
                         {isSelected && <Ionicons name="checkmark" size={14} color="white" />}
                       </View>
                       <View style={styles.moduleMainInfo}>
-                        <Text style={styles.moduleTitle}>{mod.name}</Text>
+                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                          <Text style={styles.moduleTitle}>{mod.name}</Text>
+                          {isRecommended && (
+                            <View style={styles.recommendedBadge}>
+                               <Text style={styles.recommendedBadgeText}>Recommended</Text>
+                            </View>
+                          )}
+                        </View>
                         <Text style={styles.moduleRate}>₦{mod.price.toLocaleString()} / month</Text>
                       </View>
                       <Ionicons name="chevron-forward" size={16} color={Colors.gray300} />
@@ -633,6 +646,20 @@ const styles = StyleSheet.create({
   basicPlanBadgeText: {
     fontSize: 11,
     fontWeight: '800',
+    color: Colors.teal,
+    textTransform: 'uppercase',
+  },
+  recommendedBadge: {
+    backgroundColor: Colors.teal + '15',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 6,
+    borderWidth: 0.5,
+    borderColor: Colors.teal + '30',
+  },
+  recommendedBadgeText: {
+    fontSize: 8,
+    fontWeight: '900',
     color: Colors.teal,
     textTransform: 'uppercase',
   },
