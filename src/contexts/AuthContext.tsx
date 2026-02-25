@@ -7,6 +7,7 @@ import { AuthService } from "../services/AuthService"
 import { Shift, ShiftService } from "../services/ShiftService"
 import { SESSION_EXPIRED_EVENT } from "../services/ApiClient"
 import type { User, Business, Tenant, RegisterBusinessPayload } from "../types"
+import { NotificationService } from "../services/NotificationService"
 
 interface AuthContextType {
   user: User | null
@@ -78,6 +79,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         // Check for active shift and profile in background
         checkActiveShift()
         checkProfile()
+        NotificationService.registerForPushNotificationsAsync()
       }
     } catch (e) {
       console.warn("Failed to restore session", e)
@@ -156,6 +158,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       ])
       
       startInactivityTimer()
+      NotificationService.registerForPushNotificationsAsync()
     } finally {
       setLoading(false)
     }
@@ -179,6 +182,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         ["tenantId", res.tenant?.id?.toString() || ""],
         ["currentBusinessId", res.business?.id?.toString() || ""],
       ])
+      NotificationService.registerForPushNotificationsAsync()
     } finally {
       setLoading(false)
     }
@@ -212,6 +216,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     await AsyncStorage.multiSet(storageData)
     startInactivityTimer()
     await checkActiveShift()
+    NotificationService.registerForPushNotificationsAsync()
   }
 
   const setBusinessData = async (newBusiness: Business) => {

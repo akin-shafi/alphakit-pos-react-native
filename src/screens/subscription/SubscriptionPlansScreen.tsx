@@ -20,7 +20,7 @@ import { Colors } from "../../constants/Colors";
 import { Typography } from "../../constants/Typography";
 import { formatCurrency } from "../../utils/Formatter";
 import { Paystack } from "react-native-paystack-webview";
-import { SubscriptionService } from "../../services/SubscriptionService";
+import { SubscriptionService, PaymentMethod } from "../../services/SubscriptionService";
 
 const { width } = Dimensions.get('window');
 
@@ -31,6 +31,7 @@ export const SubscriptionPlansScreen: React.FC<{ navigation: any }> = ({ navigat
     availableBundles, 
     loading, 
     processSubscription, 
+    processSavedCardSubscription,
     isSubscribed, 
     daysRemaining, 
     subscription,
@@ -46,6 +47,12 @@ export const SubscriptionPlansScreen: React.FC<{ navigation: any }> = ({ navigat
   const [isVerifyingPromo, setIsVerifyingPromo] = useState(false);
   const [promoDiscount, setPromoDiscount] = useState(0);
   const [appliedPromo, setAppliedPromo] = useState<string | null>(null);
+  const [processing, setProcessing] = useState(false);
+
+  const [savedCards, setSavedCards] = useState<PaymentMethod[]>([]);
+  const [selectedCardId, setSelectedCardId] = useState<number | null>(null);
+  const [isLoadingCards, setIsLoadingCards] = useState(false);
+  const [isUsingSavedCard, setIsUsingSavedCard] = useState(false);
   
   const [checkoutVisible, setCheckoutVisible] = useState(false);
   const paystackRef = useRef<any>(null);
@@ -74,6 +81,50 @@ export const SubscriptionPlansScreen: React.FC<{ navigation: any }> = ({ navigat
     }
   }, [activeModules, subscription, business?.type]);
 
+  useEffect(() => {
+    fetchCards();
+  }, []);
+
+  const fetchCards = async () => {
+    setIsLoadingCards(true);
+    try {
+      const cards = await SubscriptionService.getSavedCards();
+      setSavedCards(cards);
+      if (cards.length > 0) {
+        const defaultCard = cards.find(c => c.is_default) || cards[0];
+        setSelectedCardId(defaultCard.id);
+        setIsUsingSavedCard(true);
+      }
+    } catch (error) {
+      console.error("Failed to fetch saved cards:", error);
+    } finally {
+      setIsLoadingCards(false);
+    }
+  };
+
+  const handleSavedCardPayment = async () => {
+    if (!selectedCardId) {
+      Alert.alert("Error", "Please select a payment method.");
+      return;
+    }
+
+    setProcessing(true);
+    try {
+      const planType = isBasicMode ? `SERVICE_${billingCycle}` : billingCycle;
+      await processSavedCardSubscription({
+        plan_type: planType as any,
+        modules: selectedModules,
+        card_id: selectedCardId
+      });
+      Alert.alert("Success", "Subscription updated successfully!");
+      navigation.goBack();
+    } catch (error: any) {
+      Alert.alert("Payment Failed", error.response?.data?.error || "Failed to process payment with saved card.");
+    } finally {
+      setProcessing(false);
+    }
+  };
+
   const toggleModule = (moduleType: string) => {
     setSelectedModules(prev => {
       const next = prev.includes(moduleType) 
@@ -85,35 +136,52 @@ export const SubscriptionPlansScreen: React.FC<{ navigation: any }> = ({ navigat
   };
 
   const calculateTotal = useMemo(() => {
-    const basePlanMonthly = plans.find(p => p.type === (isBasicMode ? 'SERVICE_MONTHLY' : 'MONTHLY'));
+    const isWithinActivePlan = isSubscribed && subscription?.plan_type === (isBasicMode ? `SERVICE_${billingCycle}` : billingCycle);
     const currentBasePlan = plans.find(p => p.type === (isBasicMode ? `SERVICE_${billingCycle}` : billingCycle));
+    const basePlanMonthly = plans.find(p => p.type === (isBasicMode ? 'SERVICE_MONTHLY' : 'MONTHLY'));
     
     const monthMultiplier = billingCycle === 'ANNUAL' ? 12 : billingCycle === 'QUARTERLY' ? 3 : 1;
     const cycleDiscount = billingCycle === 'ANNUAL' ? 0.85 : billingCycle === 'QUARTERLY' ? 0.9 : 1;
     
-    // Original Total (Monthly rates * cycle, no discount)
-    let originalModulesTotal = 0;
-    
-    // If in Basic Mode, modules are typically not applicable or specific ones?
-    // User requested "Restricted modules" for basic? 
-    // For now allow selection but maybe clear them if switching to basic?
-    // Logic: calculate usually.
-    
-    selectedModules.forEach(modType => {
-        const mod = availableModules.find(m => m.type === modType);
-        if (mod) originalModulesTotal += mod.price * monthMultiplier;
-    });
-    const originalTotal = (basePlanMonthly?.price || 0) * monthMultiplier + originalModulesTotal;
+    // Check which modules are new vs already active
+    const activeModTypes = activeModules.map(m => m.module);
+    const newModules = selectedModules.filter(m => !activeModTypes.includes(m));
+    const existingModules = selectedModules.filter(m => activeModTypes.includes(m));
 
-    // Final Total
-    let finalModulesTotal = 0;
-    selectedModules.forEach(modType => {
-        const mod = availableModules.find(m => m.type === modType);
-        if (mod) finalModulesTotal += mod.price * monthMultiplier * cycleDiscount;
-    });
+    let finalTotal = 0;
+    let originalTotal = 0;
+    let isProratedAddon = false;
 
-    const basePriceWithCycle = currentBasePlan?.price || 0;
-    let finalTotal = basePriceWithCycle + finalModulesTotal;
+    if (isWithinActivePlan && daysRemaining > 5) {
+      // SCENARIO: MID-CYCLE ADD-ON
+      // User is already on this plan cycle. We only charge for NEW modules prorated.
+      isProratedAddon = true;
+      
+      newModules.forEach(modType => {
+        const mod = availableModules.find(m => m.type === modType);
+        if (mod) {
+          // Prorate: (Price / 30) * daysRemaining
+          const proratedPrice = (mod.price / 30) * daysRemaining;
+          finalTotal += proratedPrice;
+          originalTotal += proratedPrice; // No cycle discount on proration usually
+        }
+      });
+
+      // Plans and existing modules are already paid
+    } else {
+      // SCENARIO: FRESH START OR RENEWAL
+      const basePriceWithCycle = currentBasePlan?.price || 0;
+      finalTotal = basePriceWithCycle;
+      originalTotal = (basePlanMonthly?.price || 0) * monthMultiplier;
+
+      selectedModules.forEach(modType => {
+        const mod = availableModules.find(m => m.type === modType);
+        if (mod) {
+          finalTotal += mod.price * monthMultiplier * cycleDiscount;
+          originalTotal += mod.price * monthMultiplier;
+        }
+      });
+    }
     
     if (promoDiscount > 0) {
       finalTotal = finalTotal * (1 - promoDiscount / 100);
@@ -122,13 +190,15 @@ export const SubscriptionPlansScreen: React.FC<{ navigation: any }> = ({ navigat
     const savings = originalTotal - finalTotal;
 
     return {
-        finalTotal,
+        finalTotal: Math.max(0, finalTotal),
         originalTotal,
         savings,
-        discountPercent: Math.round((savings / originalTotal) * 100) || 0,
-        basePlanName: currentBasePlan?.name
+        discountPercent: isProratedAddon ? 0 : (Math.round((savings / originalTotal) * 100) || 0),
+        basePlanName: currentBasePlan?.name,
+        isProratedAddon,
+        newModulesCount: newModules.length
     };
-  }, [billingCycle, selectedModules, promoDiscount, plans, availableModules, isBasicMode]);
+  }, [billingCycle, selectedModules, promoDiscount, plans, availableModules, isBasicMode, isSubscribed, subscription, daysRemaining, activeModules]);
 
   if (loading && !subscription) {
     return (
@@ -286,6 +356,135 @@ export const SubscriptionPlansScreen: React.FC<{ navigation: any }> = ({ navigat
             </View>
           )}
           
+          {/* Promo Code Section */}
+          <View style={styles.promoSection}>
+            <View style={styles.sectionHeader}>
+              <View style={styles.stepCircle}><Text style={styles.stepText}>3</Text></View>
+              <Text style={styles.sectionTitle}>Promo Code</Text>
+            </View>
+            <View style={styles.promoInputRow}>
+              <TextInput
+                style={[styles.promoInput, appliedPromo ? styles.promoInputApplied : null]}
+                placeholder="PROMO CODE"
+                value={promoCode}
+                onChangeText={setPromoCode}
+                autoCapitalize="characters"
+                placeholderTextColor={Colors.gray400}
+                editable={!isVerifyingPromo}
+              />
+              <TouchableOpacity 
+                style={[styles.applyBtn, !promoCode && styles.applyBtnDisabled]}
+                onPress={async () => {
+                  if (!promoCode.trim()) return;
+                  if (appliedPromo === promoCode.trim()) {
+                    setAppliedPromo(null);
+                    setPromoDiscount(0);
+                    setPromoCode("");
+                    return;
+                  }
+                  setIsVerifyingPromo(true);
+                  try {
+                    const res = await SubscriptionService.validatePromoCode(promoCode.trim());
+                    if (res.success) {
+                      setPromoDiscount(res.discount_percentage);
+                      setAppliedPromo(promoCode.trim());
+                      Alert.alert("Success", "Promo code applied!");
+                    }
+                  } catch (e: any) {
+                    Alert.alert("Invalid", e.response?.data?.error || "Invalid promo code");
+                  } finally {
+                    setIsVerifyingPromo(false);
+                  }
+                }}
+              >
+                {isVerifyingPromo ? (
+                  <ActivityIndicator size="small" color="white" />
+                ) : (
+                  <Text style={styles.applyBtnText}>{appliedPromo === promoCode.trim() ? "Remove" : "Apply"}</Text>
+                )}
+              </TouchableOpacity>
+            </View>
+            {appliedPromo && (
+              <View style={styles.promoSuccess}>
+                <Ionicons name="gift-outline" size={14} color={Colors.success} />
+                <Text style={styles.promoSuccessText}>{promoDiscount}% discount applied!</Text>
+              </View>
+            )}
+          </View>
+
+          {/* Saved Cards Section */}
+          {savedCards.length > 0 && (
+            <View style={styles.promoSection}>
+              <View style={[styles.sectionHeader, { justifyContent: 'space-between', flexDirection: 'row', alignItems: 'center' }]}>
+                <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                  <View style={styles.stepCircle}><Text style={styles.stepText}>4</Text></View>
+                  <Text style={styles.sectionTitle}>Payment Method</Text>
+                </View>
+                <TouchableOpacity onPress={() => setIsUsingSavedCard(!isUsingSavedCard)}>
+                  <Text style={{ color: Colors.teal, fontWeight: '900', fontSize: 10 }}>
+                    {isUsingSavedCard ? "ADD NEW" : "USE SAVED"}
+                  </Text>
+                </TouchableOpacity>
+              </View>
+
+              {isUsingSavedCard && (
+                <View style={{ marginTop: 15 }}>
+                  <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 5 }}>
+                    {savedCards.map(card => (
+                      <TouchableOpacity 
+                        key={card.id} 
+                        onPress={() => setSelectedCardId(card.id)}
+                        style={{
+                          backgroundColor: selectedCardId === card.id ? Colors.slate900 : Colors.gray50,
+                          padding: 15,
+                          borderRadius: 20,
+                          marginRight: 10,
+                          borderWidth: 1,
+                          borderColor: selectedCardId === card.id ? Colors.slate900 : Colors.gray100,
+                          minWidth: 160,
+                          shadowColor: Colors.slate900,
+                          shadowOffset: { width: 0, height: 4 },
+                          shadowOpacity: selectedCardId === card.id ? 0.2 : 0,
+                          shadowRadius: 8,
+                          elevation: selectedCardId === card.id ? 4 : 0,
+                          position: 'relative'
+                        }}
+                      >
+                        <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 5 }}>
+                          <Ionicons 
+                            name="card-outline" 
+                            size={18} 
+                            color={selectedCardId === card.id ? "white" : Colors.gray500} 
+                          />
+                          <Text style={{ 
+                            marginLeft: 8, 
+                            color: selectedCardId === card.id ? "white" : Colors.slate800,
+                            fontWeight: '900',
+                            fontSize: 13
+                          }}>
+                            •••• {card.last4}
+                          </Text>
+                        </View>
+                        <Text style={{ 
+                          color: selectedCardId === card.id ? Colors.gray400 : Colors.gray500,
+                          fontSize: 10,
+                          fontWeight: '700'
+                        }}>
+                          {card.brand} • Exp {card.exp_month}/{card.exp_year}
+                        </Text>
+                        {selectedCardId === card.id && (
+                          <View style={{ position: 'absolute', top: 10, right: 10 }}>
+                            <Ionicons name="checkmark-circle" size={16} color={Colors.teal} />
+                          </View>
+                        )}
+                      </TouchableOpacity>
+                    ))}
+                  </ScrollView>
+                </View>
+              )}
+            </View>
+          )}
+          
           {/* Order Summary Card */}
           <View style={styles.summaryCard}>
             <Text style={styles.summaryHeading}>Order Summary</Text>
@@ -297,19 +496,34 @@ export const SubscriptionPlansScreen: React.FC<{ navigation: any }> = ({ navigat
               </Text>
             </View>
 
-            {selectedModules.length > 0 && (
+            {calculateTotal.newModulesCount > 0 && (
               <View style={styles.summaryLine}>
-                <Text style={styles.summaryLabel}>Premium Add-ons</Text>
+                <Text style={styles.summaryLabel}>
+                  {calculateTotal.isProratedAddon ? 'New Add-ons (Prorated)' : 'Premium Add-ons'}
+                </Text>
                 <Text style={styles.summaryValue}>
-                  {selectedModules.length} Active
+                  {calculateTotal.newModulesCount} {calculateTotal.isProratedAddon ? 'Items' : 'Active'}
+                </Text>
+              </View>
+            )}
+
+            {calculateTotal.isProratedAddon && (
+              <View style={styles.prorationNotice}>
+                <Ionicons name="information-circle-outline" size={14} color={Colors.teal} />
+                <Text style={styles.prorationNoticeText}>
+                  Prorated for {daysRemaining} days remaining in current cycle
                 </Text>
               </View>
             )}
 
             <View style={styles.finalTotalContainer}>
               <View>
-                <Text style={styles.totalPrompt}>Amount to Pay</Text>
-                <Text style={styles.totalBilling}>{billingCycle} BILLING</Text>
+                <Text style={styles.totalPrompt}>
+                  {calculateTotal.isProratedAddon ? 'Add-on Total' : 'Amount to Pay'}
+                </Text>
+                <Text style={styles.totalBilling}>
+                  {calculateTotal.isProratedAddon ? 'CURRENT CYCLE' : `${billingCycle} BILLING`}
+                </Text>
               </View>
               <View style={{ alignItems: 'flex-end' }}>
                 {calculateTotal.savings > 0 && (
@@ -320,16 +534,40 @@ export const SubscriptionPlansScreen: React.FC<{ navigation: any }> = ({ navigat
                     </View>
                   </View>
                 )}
+                {promoDiscount > 0 && !calculateTotal.isProratedAddon && (
+                  <View style={styles.promoDiscountRow}>
+                    <Text style={styles.promoDiscountText}>PROMO: -{promoDiscount}%</Text>
+                  </View>
+                )}
                 <Text style={styles.finalPrice}>{formatCurrency(calculateTotal.finalTotal, 'NGN')}</Text>
               </View>
             </View>
 
             <TouchableOpacity 
-              style={styles.checkoutBtn}
-              onPress={() => setCheckoutVisible(true)}
+              style={[styles.checkoutBtn, processing && { opacity: 0.7 }]}
+              onPress={() => {
+                if (calculateTotal.finalTotal <= 0 && calculateTotal.isProratedAddon) {
+                  Alert.alert("Already Active", "These modules are already active in your current plan.");
+                  return;
+                }
+                if (isUsingSavedCard && selectedCardId) {
+                  handleSavedCardPayment();
+                } else {
+                  setCheckoutVisible(true);
+                }
+              }}
+              disabled={processing}
             >
-              <Text style={styles.checkoutBtnText}>Confirm and Upgrade</Text>
-              <Ionicons name="arrow-forward" size={20} color="white" />
+              {processing ? (
+                <ActivityIndicator color="white" />
+              ) : (
+                <>
+                  <Text style={styles.checkoutBtnText}>
+                    {isUsingSavedCard ? 'Subscribe with Saved Card' : (calculateTotal.isProratedAddon ? 'Add to Current Plan' : 'Confirm and Upgrade')}
+                  </Text>
+                  <Ionicons name={isUsingSavedCard ? "checkmark-circle" : "arrow-forward"} size={20} color="white" />
+                </>
+              )}
             </TouchableOpacity>
 
             <View style={styles.trustRow}>
@@ -367,49 +605,35 @@ export const SubscriptionPlansScreen: React.FC<{ navigation: any }> = ({ navigat
             </View>
 
             <ScrollView style={styles.modalBody}>
-               <View style={styles.promoBox}>
-                  <Text style={styles.promoLabel}>Promo Code</Text>
-                  <View style={styles.promoInputRow}>
-                    <TextInput
-                      style={styles.promoInput}
-                      placeholder="ENTER CODE"
-                      value={promoCode}
-                      onChangeText={setPromoCode}
-                      autoCapitalize="characters"
-                    />
-                    <TouchableOpacity 
-                      style={[styles.applyBtn, !promoCode && styles.applyBtnDisabled]}
-                      onPress={async () => {
-                         if (!promoCode.trim()) return;
-                         setIsVerifyingPromo(true);
-                         try {
-                           const res = await SubscriptionService.validatePromoCode(promoCode.trim());
-                           if (res.success) {
-                             setPromoDiscount(res.discount_percentage);
-                             setAppliedPromo(promoCode.trim());
-                             Alert.alert("Success", "Code applied!");
-                           }
-                         } finally {
-                           setIsVerifyingPromo(false);
-                         }
-                      }}
-                    >
-                      {isVerifyingPromo ? <ActivityIndicator size="small" color="white" /> : <Text style={styles.applyBtnText}>Apply</Text>}
-                    </TouchableOpacity>
-                  </View>
-               </View>
-
-               <View style={styles.checkoutSummary}>
+                <View style={styles.checkoutSummary}>
                   <Text style={styles.checkTitle}>Order Breakdown</Text>
                   <View style={styles.checkLine}>
-                    <Text style={styles.checkLabel}>Base Plan</Text>
-                    <Text style={styles.checkValue}>{formatCurrency(calculateTotal.finalTotal, 'NGN')}</Text>
+                    <Text style={styles.checkLabel}>Base Subtotal</Text>
+                    <Text style={styles.checkValue}>
+                      {formatCurrency(calculateTotal.originalTotal, 'NGN')}
+                    </Text>
                   </View>
+                  {calculateTotal.savings > 0 && (
+                    <View style={styles.checkLine}>
+                      <Text style={styles.checkLabel}>Cycle Discount</Text>
+                      <Text style={[styles.checkValue, { color: Colors.success }]}>
+                        -{formatCurrency(calculateTotal.savings, 'NGN')}
+                      </Text>
+                    </View>
+                  )}
+                  {promoDiscount > 0 && !calculateTotal.isProratedAddon && (
+                    <View style={styles.checkLine}>
+                      <Text style={styles.checkLabel}>Promo Discount ({promoDiscount}%)</Text>
+                      <Text style={[styles.checkValue, { color: Colors.success }]}>
+                        -{formatCurrency((calculateTotal.finalTotal / (1 - promoDiscount/100)) * (promoDiscount/100), 'NGN')}
+                      </Text>
+                    </View>
+                  )}
                   <View style={[styles.checkLine, { borderTopWidth: 1, borderTopColor: Colors.gray100, marginTop: 10, paddingTop: 10 }]}>
-                    <Text style={styles.checkLabelBold}>Total Amount</Text>
+                    <Text style={styles.checkLabelBold}>Final Payment</Text>
                     <Text style={styles.checkValueBold}>{formatCurrency(calculateTotal.finalTotal, 'NGN')}</Text>
                   </View>
-               </View>
+                </View>
 
                <TouchableOpacity 
                 style={styles.paystackBtn}
@@ -661,6 +885,58 @@ const styles = StyleSheet.create({
     fontSize: 8,
     fontWeight: '900',
     color: Colors.teal,
+    textTransform: 'uppercase',
+  },
+  prorationNotice: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: Colors.teal + '10',
+    padding: 10,
+    borderRadius: 12,
+    marginTop: 8,
+  },
+  prorationNoticeText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: Colors.teal,
+    flex: 1,
+  },
+  promoSection: {
+    marginBottom: 40,
+    backgroundColor: Colors.white,
+    padding: 20,
+    borderRadius: 24,
+    borderWidth: 1,
+    borderColor: Colors.gray100,
+  },
+  promoInputApplied: {
+    borderColor: Colors.success,
+    backgroundColor: Colors.success + '05',
+  },
+  promoSuccess: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginTop: 12,
+    backgroundColor: Colors.success + '10',
+    padding: 10,
+    borderRadius: 12,
+  },
+  promoSuccessText: {
+    fontSize: 11,
+    fontWeight: '800',
+    color: Colors.success,
+    textTransform: 'uppercase',
+  },
+  promoDiscountRow: {
+    marginBottom: 2,
+    alignItems: 'flex-end',
+  },
+  promoDiscountText: {
+    fontSize: 10,
+    fontWeight: '900',
+    color: Colors.success,
     textTransform: 'uppercase',
   },
 });

@@ -1,6 +1,6 @@
 
 import React, { createContext, useState, useContext, useEffect, useCallback } from "react";
-import { SubscriptionService, Subscription, SubscriptionPlan, BusinessModule, ModulePlan } from "../services/SubscriptionService";
+import { SubscriptionService, Subscription, SubscriptionPlan, BusinessModule, ModulePlan, ModuleBundle } from "../services/SubscriptionService";
 import { useAuth } from "./AuthContext";
 
 interface SubscriptionContextType {
@@ -17,6 +17,7 @@ interface SubscriptionContextType {
   hasModule: (module: string) => boolean;
   refreshStatus: () => Promise<void>;
   processSubscription: (planType: string, reference: string, modules?: string[], bundleCode?: string, promoCode?: string) => Promise<void>;
+  processSavedCardSubscription: (data: { plan_type: string; modules: string[]; bundle_code?: string; card_id: number }) => Promise<void>;
 }
 
 const SubscriptionContext = createContext<SubscriptionContextType | undefined>(undefined);
@@ -104,6 +105,19 @@ export const SubscriptionProvider: React.FC<{ children: React.ReactNode }> = ({ 
     }
   };
 
+  const processSavedCardSubscription = async (data: { plan_type: string; modules: string[]; bundle_code?: string; card_id: number }) => {
+    try {
+      setLoading(true);
+      await SubscriptionService.chargeSavedCard(data);
+      await refreshStatus();
+    } catch (error) {
+      console.error("Saved card subscription failed:", error);
+      throw error;
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const isSubscribed = subscription?.status === "ACTIVE" || subscription?.status === "GRACE_PERIOD";
   const isExpired = subscription?.status === "EXPIRED" || subscription?.status === "PENDING_PAYMENT";
   const isGracePeriod = subscription?.status === "GRACE_PERIOD";
@@ -132,6 +146,7 @@ export const SubscriptionProvider: React.FC<{ children: React.ReactNode }> = ({ 
         hasModule,
         refreshStatus,
         processSubscription,
+        processSavedCardSubscription,
       }}
     >
       {children}

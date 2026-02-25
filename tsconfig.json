@@ -21,6 +21,10 @@
   },
   "include": [
     "src/**/*.ts",
-    "src/**/*.tsx"
+    "src/**/*.tsx",
+    "App.tsx" // Make sure your main files are included
+  ],
+  "exclude": [
+    "node_modules" // Ensure node_modules is explicitly excluded
   ]
 }

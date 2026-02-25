@@ -17,6 +17,9 @@ export const Colors = {
   gray800: "#1F2937",
   gray900: "#111827",
 
+  slate800: "#1e293b",
+  slate900: "#0f172a",
+
   // Primary teal theme (from reference design)
   teal: "#0D5963",
   tealDark: "#0A4750",
