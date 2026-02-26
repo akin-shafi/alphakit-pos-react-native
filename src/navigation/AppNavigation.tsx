@@ -7,6 +7,7 @@ import { POSStack } from "./POSStack"
 import { SubscriptionExpiredScreen } from "../screens/subscription/SubscriptionExpiredScreen"
 import { SubscriptionPlansScreen } from "../screens/subscription/SubscriptionPlansScreen"
 import { SubscriptionCheckoutScreen } from "../screens/subscription/SubscriptionCheckoutScreen"
+import { SubscriptionHistoryScreen } from "../screens/subscription/SubscriptionHistoryScreen"
 
 const Stack = createStackNavigator()
 
@@ -27,6 +28,7 @@ export const AppNavigation = () => {
           <Stack.Screen name="SubscriptionExpired" component={SubscriptionExpiredScreen} />
           <Stack.Screen name="SubscriptionPlans" component={SubscriptionPlansScreen} />
           <Stack.Screen name="SubscriptionCheckout" component={SubscriptionCheckoutScreen} />
+          <Stack.Screen name="SubscriptionHistory" component={SubscriptionHistoryScreen} />
         </Stack.Group>
       ) : (
         <Stack.Screen name="POS" component={POSStack} />

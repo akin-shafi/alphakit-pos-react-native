@@ -17,6 +17,7 @@ export interface ModulePlan {
   name: string;
   price: number;
   description: string;
+  depends_on?: string[];
 }
 
 export interface ModuleBundle {
@@ -43,6 +44,7 @@ export interface Subscription {
   start_date: string;
   end_date: string;
   amount_paid: number;
+  description?: string;
   payment_method?: string;
   transaction_reference: string;
   created_at?: string;
@@ -82,6 +84,11 @@ export const SubscriptionService = {
 
   getStatus: async (): Promise<Subscription | { status: "NONE" }> => {
     const response = await apiClient.get(API_ENDPOINTS.subscription.status);
+    return response.data;
+  },
+
+  getHistory: async (): Promise<Subscription[]> => {
+    const response = await apiClient.get(API_ENDPOINTS.subscription.history);
     return response.data;
   },
 

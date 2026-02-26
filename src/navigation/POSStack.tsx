@@ -13,6 +13,7 @@ import { ReceiptSettingsScreen } from "../screens/settings/ReceiptSettingsScreen
 import { MainTabs } from "./MainTabs"
 import { SubscriptionPlansScreen } from "../screens/subscription/SubscriptionPlansScreen"
 import { SubscriptionExpiredScreen } from "../screens/subscription/SubscriptionExpiredScreen"
+import { SubscriptionHistoryScreen } from "../screens/subscription/SubscriptionHistoryScreen"
 import { DashboardScreen } from "../screens/home/DashboardScreen"
 import { ProfileScreen } from "../screens/settings/ProfileScreen"
 import { RoleManagementScreen } from "../screens/settings/RoleManagementScreen"
@@ -60,6 +61,7 @@ export const POSStack = () => {
       <Stack.Screen name="ReceiptSettings" component={ReceiptSettingsScreen} />
       <Stack.Screen name="SubscriptionPlans" component={SubscriptionPlansScreen} />
       <Stack.Screen name="SubscriptionExpired" component={SubscriptionExpiredScreen} />
+      <Stack.Screen name="SubscriptionHistory" component={SubscriptionHistoryScreen} />
       <Stack.Screen name="Profile" component={ProfileScreen} />
       <Stack.Screen name="RoleManagement" component={RoleManagementScreen} />
       <Stack.Screen name="ShiftManagement" component={ShiftManagementScreen} />

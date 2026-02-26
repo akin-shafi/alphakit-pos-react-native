@@ -3,6 +3,7 @@ import { useState, useEffect } from "react"
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView, SafeAreaView, Dimensions, ActivityIndicator } from "react-native"
 import { Ionicons } from "@expo/vector-icons"
 import { useAuth } from "../../contexts/AuthContext"
+import { useSubscription } from "../../contexts/SubscriptionContext"
 import { RolePermissions } from "../../constants/Roles"
 import { Colors, BusinessThemes, getBusinessTheme } from "../../constants/Colors"
 import { Typography } from "../../constants/Typography"
@@ -26,6 +27,7 @@ interface ModuleItem {
 
 export const DashboardScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
   const { business, user, logout } = useAuth()
+  const { subscription, daysRemaining } = useSubscription()
   const [reportData, setReportData] = useState<DailyReport | null>(null)
   const [loading, setLoading] = useState(false)
   
@@ -33,6 +35,8 @@ export const DashboardScreen: React.FC<{ navigation: any }> = ({ navigation }) =
   const userRole = (user?.role || "cashier").toLowerCase()
   const isSuperAdmin = user?.role === "super_admin"
   const permissions = RolePermissions[userRole as keyof typeof RolePermissions] || RolePermissions.cashier
+
+  const isInGracePeriod = subscription?.status === 'GRACE_PERIOD'
 
   useEffect(() => {
     if (permissions.canViewReports && !isSuperAdmin) {
@@ -141,6 +145,25 @@ export const DashboardScreen: React.FC<{ navigation: any }> = ({ navigation }) =
         </View>
 
         <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
+          {/* Grace Period Alert */}
+          {isInGracePeriod && (
+            <TouchableOpacity 
+              style={styles.graceAlert}
+              onPress={() => navigation.navigate("SubscriptionPlans")}
+            >
+              <View style={styles.graceIconBg}>
+                <Ionicons name="time" size={24} color={Colors.white} />
+              </View>
+              <View style={styles.graceContent}>
+                <Text style={styles.graceTitle}>Renew Your Subscription</Text>
+                <Text style={styles.graceText}>
+                  Your account is in a 7-day grace period. Renew now to avoid being locked out.
+                </Text>
+              </View>
+              <Ionicons name="chevron-forward" size={20} color={Colors.white} opacity={0.7} />
+            </TouchableOpacity>
+          )}
+
           {/* User Profile Card */}
           <TouchableOpacity 
             style={[styles.userCard, { backgroundColor: theme.primary }]}
@@ -457,5 +480,42 @@ const styles = StyleSheet.create({
   howItWorksSubtitle: {
     fontSize: Typography.xs,
     color: Colors.gray500,
+  },
+  graceAlert: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#DD2C00', // Deep urgent red
+    padding: 16,
+    borderRadius: 16,
+    marginBottom: 24,
+    shadowColor: '#DD2C00',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 6,
+  },
+  graceIconBg: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: 'rgba(255,255,255,0.2)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 12,
+  },
+  graceContent: {
+    flex: 1,
+  },
+  graceTitle: {
+    color: Colors.white,
+    fontSize: 16,
+    fontWeight: '900',
+    textTransform: 'uppercase',
+  },
+  graceText: {
+    color: 'rgba(255,255,255,0.85)',
+    fontSize: 12,
+    fontWeight: '700',
+    marginTop: 2,
   },
 })

@@ -127,9 +127,34 @@ export const SubscriptionPlansScreen: React.FC<{ navigation: any }> = ({ navigat
 
   const toggleModule = (moduleType: string) => {
     setSelectedModules(prev => {
-      const next = prev.includes(moduleType) 
+      const isRemoving = prev.includes(moduleType);
+      let next = isRemoving 
         ? prev.filter(m => m !== moduleType) 
         : [...prev, moduleType];
+      
+      // Enforce Dependencies
+      if (!isRemoving) {
+        // Find if this module has dependencies
+        const moduleData = availableModules.find(m => m.type === moduleType);
+        if (moduleData?.depends_on) {
+          moduleData.depends_on.forEach(dep => {
+            if (!next.includes(dep)) {
+              next.push(dep);
+              const depName = availableModules.find(m => m.type === dep)?.name || dep;
+              Alert.alert("Auto-selected", `${moduleData.name} requires ${depName}.`);
+            }
+          });
+        }
+      } else {
+        // If removing a dependency, remove children? 
+        // Example: If removing Inventory, remove Recipe.
+        availableModules.forEach(m => {
+          if (m.depends_on?.includes(moduleType) && next.includes(m.type)) {
+            next = next.filter(mod => mod !== m.type);
+            Alert.alert("Auto-removed", `Removing ${moduleType} also removes ${m.name}.`);
+          }
+        });
+      }
       
       return next;
     });
@@ -146,30 +171,37 @@ export const SubscriptionPlansScreen: React.FC<{ navigation: any }> = ({ navigat
     // Check which modules are new vs already active
     const activeModTypes = activeModules.map(m => m.module);
     const newModules = selectedModules.filter(m => !activeModTypes.includes(m));
-    const existingModules = selectedModules.filter(m => activeModTypes.includes(m));
 
     let finalTotal = 0;
     let originalTotal = 0;
     let isProratedAddon = false;
+    let creditAmount = 0;
+    let isUpgrade = false;
+
+    if (isSubscribed && subscription && !isWithinActivePlan && subscription.plan_type !== 'TRIAL') {
+      // SCENARIO: UPGRADE
+      const oldPlan = plans.find(p => p.type === subscription.plan_type);
+      if (oldPlan && currentBasePlan && currentBasePlan.price > oldPlan.price) {
+        isUpgrade = true;
+        // Local calculation of credit (sync with backend)
+        creditAmount = (daysRemaining / oldPlan.duration_days) * (subscription.amount_paid || oldPlan.price);
+      }
+    }
 
     if (isWithinActivePlan && daysRemaining > 5) {
       // SCENARIO: MID-CYCLE ADD-ON
-      // User is already on this plan cycle. We only charge for NEW modules prorated.
       isProratedAddon = true;
       
       newModules.forEach(modType => {
         const mod = availableModules.find(m => m.type === modType);
         if (mod) {
-          // Prorate: (Price / 30) * daysRemaining
           const proratedPrice = (mod.price / 30) * daysRemaining;
           finalTotal += proratedPrice;
-          originalTotal += proratedPrice; // No cycle discount on proration usually
+          originalTotal += proratedPrice;
         }
       });
-
-      // Plans and existing modules are already paid
     } else {
-      // SCENARIO: FRESH START OR RENEWAL
+      // SCENARIO: FRESH START OR RENEWAL OR UPGRADE
       const basePriceWithCycle = currentBasePlan?.price || 0;
       finalTotal = basePriceWithCycle;
       originalTotal = (basePlanMonthly?.price || 0) * monthMultiplier;
@@ -181,6 +213,10 @@ export const SubscriptionPlansScreen: React.FC<{ navigation: any }> = ({ navigat
           originalTotal += mod.price * monthMultiplier;
         }
       });
+
+      if (isUpgrade) {
+          finalTotal -= creditAmount;
+      }
     }
     
     if (promoDiscount > 0) {
@@ -196,6 +232,8 @@ export const SubscriptionPlansScreen: React.FC<{ navigation: any }> = ({ navigat
         discountPercent: isProratedAddon ? 0 : (Math.round((savings / originalTotal) * 100) || 0),
         basePlanName: currentBasePlan?.name,
         isProratedAddon,
+        isUpgrade,
+        creditAmount,
         newModulesCount: newModules.length
     };
   }, [billingCycle, selectedModules, promoDiscount, plans, availableModules, isBasicMode, isSubscribed, subscription, daysRemaining, activeModules]);
@@ -218,7 +256,12 @@ export const SubscriptionPlansScreen: React.FC<{ navigation: any }> = ({ navigat
             <Ionicons name="arrow-back" size={24} color={Colors.gray900} />
           </TouchableOpacity>
           <Text style={styles.headerTitle}>Subscription</Text>
-          <View style={{ width: 40 }} />
+          <TouchableOpacity 
+            onPress={() => navigation.navigate("SubscriptionHistory")}
+            style={styles.historyButton}
+          >
+            <Ionicons name="receipt-outline" size={24} color={Colors.gray900} />
+          </TouchableOpacity>
         </View>
 
         <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
@@ -516,6 +559,15 @@ export const SubscriptionPlansScreen: React.FC<{ navigation: any }> = ({ navigat
               </View>
             )}
 
+            {calculateTotal.isUpgrade && (
+              <View style={styles.prorationNotice}>
+                <Ionicons name="sparkles" size={14} color={Colors.teal} />
+                <Text style={styles.prorationNoticeText}>
+                  Upgrade Credit: -{formatCurrency(calculateTotal.creditAmount, 'NGN')} (Unused value)
+                </Text>
+              </View>
+            )}
+
             <View style={styles.finalTotalContainer}>
               <View>
                 <Text style={styles.totalPrompt}>
@@ -696,6 +748,7 @@ const styles = StyleSheet.create({
   },
   headerTitle: { fontSize: 18, fontWeight: "900", color: Colors.gray900, textTransform: 'uppercase', letterSpacing: 0.5 },
   backButton: { padding: 8, borderRadius: 12, backgroundColor: Colors.gray50 },
+  historyButton: { padding: 8, borderRadius: 12, backgroundColor: Colors.gray50 },
   scrollContent: { padding: 20, paddingBottom: 60 },
   
   statusBanner: {
