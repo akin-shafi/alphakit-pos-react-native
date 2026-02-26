@@ -24,6 +24,7 @@ import { TableManagementScreen } from "../screens/settings/TableManagementScreen
 import { TaxSettingsScreen } from "../screens/settings/TaxSettingsScreen"
 import { HowItWorksScreen } from "../screens/home/HowItWorksScreen"
 import { KitchenScreen } from "../screens/kitchen/KitchenScreen"
+import { ExpensesScreen } from "../screens/reports/ExpensesScreen"
 import { useAuth } from "../contexts/AuthContext"
 
 const Stack = createStackNavigator()
@@ -68,6 +69,7 @@ export const POSStack = () => {
       <Stack.Screen name="TableManagement" component={TableManagementScreen} />
       <Stack.Screen name="TaxSettings" component={TaxSettingsScreen} />
       <Stack.Screen name="AuditLog" component={AuditLogScreen} />
+      <Stack.Screen name="Expenses" component={ExpensesScreen} />
       <Stack.Screen name="HowItWorks" component={HowItWorksScreen} />
     </Stack.Navigator>
   )

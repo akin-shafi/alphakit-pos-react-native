@@ -8,7 +8,9 @@ import { RolePermissions } from "../../constants/Roles"
 import { Colors, BusinessThemes, getBusinessTheme } from "../../constants/Colors"
 import { Typography } from "../../constants/Typography"
 import { ReportService, type DailyReport } from "../../services/ReportService"
+import { InventoryService } from "../../services/InventoryService"
 import { formatCurrency } from "../../utils/Formatter"
+import type { Product } from "../../types"
 
 const { width } = Dimensions.get("window")
 const GRID_GAP = 12
@@ -29,6 +31,7 @@ export const DashboardScreen: React.FC<{ navigation: any }> = ({ navigation }) =
   const { business, user, logout } = useAuth()
   const { subscription, daysRemaining } = useSubscription()
   const [reportData, setReportData] = useState<DailyReport | null>(null)
+  const [lowStockCount, setLowStockCount] = useState(0)
   const [loading, setLoading] = useState(false)
   
   const theme = getBusinessTheme(business?.type)
@@ -49,6 +52,11 @@ export const DashboardScreen: React.FC<{ navigation: any }> = ({ navigation }) =
     try {
       const data = await ReportService.getDailyReport()
       setReportData(data)
+
+      if (permissions.canManageInventory) {
+        const lowStock = await InventoryService.getLowStockProducts()
+        setLowStockCount(lowStock.length)
+      }
     } catch (e) {
       console.error("Failed to fetch dashboard metrics", e)
     } finally {
@@ -164,6 +172,25 @@ export const DashboardScreen: React.FC<{ navigation: any }> = ({ navigation }) =
             </TouchableOpacity>
           )}
 
+          {/* Low Stock Alert */}
+          {permissions.canManageInventory && lowStockCount > 0 && (
+            <TouchableOpacity 
+              style={[styles.graceAlert, { backgroundColor: '#FF8F00', shadowColor: '#FF8F00' }]}
+              onPress={() => navigation.navigate("MainTabs", { screen: "Inventory" })}
+            >
+              <View style={styles.graceIconBg}>
+                <Ionicons name="warning" size={24} color={Colors.white} />
+              </View>
+              <View style={styles.graceContent}>
+                <Text style={styles.graceTitle}>Low Stock Warning</Text>
+                <Text style={styles.graceText}>
+                  {lowStockCount} products are running low. Restock soon to avoid lost sales.
+                </Text>
+              </View>
+              <Ionicons name="chevron-forward" size={20} color={Colors.white} opacity={0.7} />
+            </TouchableOpacity>
+          )}
+
           {/* User Profile Card */}
           <TouchableOpacity 
             style={[styles.userCard, { backgroundColor: theme.primary }]}
@@ -239,6 +266,15 @@ export const DashboardScreen: React.FC<{ navigation: any }> = ({ navigation }) =
                   <Text style={styles.quickInfoLabel}>Total Revenue</Text>
                   <Text style={styles.quickInfoValue}>
                     {loading ? <ActivityIndicator size="small" color={Colors.teal} /> : formatCurrency(reportData?.total_sales || 0, business?.currency)}
+                  </Text>
+                </View>
+              </View>
+              <View style={[styles.quickInfoCard, { borderLeftWidth: 4, borderLeftColor: Colors.teal }]}>
+                <Ionicons name="bar-chart" size={24} color={Colors.teal} />
+                <View style={styles.quickInfoText}>
+                  <Text style={[styles.quickInfoLabel, { color: Colors.teal, fontWeight: 'bold' }]}>Total Profit</Text>
+                  <Text style={[styles.quickInfoValue, { color: Colors.teal }]}>
+                    {loading ? <ActivityIndicator size="small" color={Colors.teal} /> : formatCurrency(reportData?.total_profit || 0, business?.currency)}
                   </Text>
                 </View>
               </View>

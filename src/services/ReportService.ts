@@ -5,10 +5,14 @@ import type { Sale } from "../types";
 export interface DailyReport {
   date: string;
   total_sales: number;
+  total_cost: number;
+  total_profit: number;
   total_transactions: number;
   cash_sales: number;
   card_sales: number;
   transfer_sales: number;
+  total_expenses: number;
+  net_profit: number;
   average_sale: number;
 }
 
@@ -16,6 +20,8 @@ export interface SalesReport {
   from_date: string;
   to_date: string;
   total_sales: number;
+  total_cost: number;
+  total_profit: number;
   total_transactions: number;
   cash_sales: number;
   cash_transactions: number;
@@ -27,7 +33,26 @@ export interface SalesReport {
   mobile_money_transactions: number;
   other_sales: number;
   other_transactions: number;
+  total_expenses: number;
+  net_profit: number;
   average_sale: number;
+}
+
+export interface ProductProfitStat {
+  product_id: number;
+  product_name: string;
+  total_qty: number;
+  revenue: number;
+  cost: number;
+  profit: number;
+}
+
+export interface MonthlySummaryItem {
+  month: string;
+  revenue: number;
+  cost: number;
+  expenses: number;
+  profit: number;
 }
 
 export const ReportService = {
@@ -57,6 +82,28 @@ export const ReportService = {
       endpoint += `&payment_method=${paymentMethod}`;
     }
     const res = await apiClient.get(endpoint);
+    return res.data;
+  },
+
+  /**
+   * Fetch product-wise profit report
+   */
+  getProductProfitReport: async (from?: string, to?: string): Promise<ProductProfitStat[]> => {
+    let endpoint = API_ENDPOINTS.sales.productProfit;
+    const params: string[] = [];
+    if (from) params.push(`from=${from}`);
+    if (to) params.push(`to=${to}`);
+    if (params.length > 0) endpoint += `?${params.join("&")}`;
+    
+    const res = await apiClient.get(endpoint);
+    return res.data;
+  },
+
+  /**
+   * Fetch monthly financial summary for charting
+   */
+  getMonthlyReport: async (months: number = 6): Promise<MonthlySummaryItem[]> => {
+    const res = await apiClient.get(`${API_ENDPOINTS.sales.monthlyReport}?months=${months}`);
     return res.data;
   },
 
@@ -111,5 +158,6 @@ export const ReportService = {
     }));
   },
 };
+
 
 export default ReportService;

@@ -65,6 +65,8 @@ export const Colors = {
   indigo: "#6366F1",
   indigoDark: "#3730A3",
   indigo50: "#EEF2FF",
+  rose: "#E11D48",
+  rose50: "#FFF1F2",
 }
 
 // Business type themes - updated to use teal as primary

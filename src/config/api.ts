@@ -24,6 +24,8 @@ export const API_ENDPOINTS = {
     productById: (productId: string) => `/products/${productId}` as const,
     productsByBusiness: (businessId: string) =>
       `/products?businessId=${businessId}` as const,
+    summary: "/inventory/summary" as const,
+    lowStock: "/products/low-stock" as const,
   },
   categories: {
     base: "/categories" as const,
@@ -37,6 +39,8 @@ export const API_ENDPOINTS = {
     list: "/sales" as const, // Will use query params for filtering
     dailyReport: "/sales/reports/daily" as const,
     rangeReport: "/sales/reports/range" as const,
+    productProfit: "/sales/reports/products" as const,
+    monthlyReport: "/sales/reports/monthly" as const,
   },
 
 	
@@ -50,6 +54,10 @@ export const API_ENDPOINTS = {
     cards: "/subscription/cards" as const,
     chargeSaved: "/subscription/charge-saved" as const,
     deleteCard: (id: string) => `/subscription/cards/${id}` as const,
+  },
+  expenses: {
+    base: "/expenses" as const,
+    byId: (id: string) => `/expenses/${id}` as const,
   },
 };
 

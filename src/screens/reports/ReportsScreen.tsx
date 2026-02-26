@@ -2,8 +2,9 @@
 
 import type React from "react"
 import { useState, useEffect } from "react"
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator, RefreshControl } from "react-native"
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator, RefreshControl, Dimensions } from "react-native"
 import { Ionicons } from "@expo/vector-icons"
+import { LineChart } from "react-native-chart-kit"
 import { useAuth } from "../../contexts/AuthContext"
 import { RolePermissions } from "../../constants/Roles"
 import type { Sale } from "../../types"
@@ -23,6 +24,8 @@ export const ReportsScreen: React.FC<{ navigation: any }> = ({ navigation }) => 
   const [selectedFilter, setSelectedFilter] = useState<"all" | "cash" | "card" | "transfer">("all")
   
   const [reportData, setReportData] = useState<DailyReport | SalesReport | null>(null)
+  const [productProfitData, setProductProfitData] = useState<any[]>([])
+  const [monthlyFinancials, setMonthlyFinancials] = useState<any[]>([])
   const [transactions, setTransactions] = useState<Sale[]>([])
 
   const theme = getBusinessTheme(business?.type)
@@ -69,6 +72,20 @@ export const ReportsScreen: React.FC<{ navigation: any }> = ({ navigation }) => 
         
         const data = await ReportService.getSalesReport(startDateStr, endDateStr)
         setReportData(data)
+      }
+
+      // Fetch product performance if owner/manager
+      if (!isCashier) {
+        const productData = await ReportService.getProductProfitReport(startDateStr, endDateStr)
+        setProductProfitData(productData)
+
+        // Fetch monthly trend
+        try {
+          const trend = await ReportService.getMonthlyReport(6)
+          setMonthlyFinancials(trend)
+        } catch (chartError) {
+          console.log("Could not load chart data", chartError)
+        }
       }
 
       // Fetch transactions for the list
@@ -213,6 +230,18 @@ export const ReportsScreen: React.FC<{ navigation: any }> = ({ navigation }) => 
                 </TouchableOpacity>
 
                 <TouchableOpacity 
+                  style={[styles.metricCard, selectedFilter === "all" && { borderColor: theme.primary, borderWidth: 2 }]}
+                  onPress={() => setSelectedFilter("all")}
+                >
+                  <View style={[styles.metricIcon, { backgroundColor: Colors.teal + '10' }]}>
+                    <Ionicons name="bar-chart" size={24} color={Colors.teal} />
+                  </View>
+                  <Text style={styles.metricLabel}>Gross Profit</Text>
+                  <Text style={[styles.metricValue, { color: Colors.teal }]}>{formatCurrency(reportData?.total_profit || 0, business?.currency)}</Text>
+                  <Text style={styles.metricSubtext}>Sales - Cost</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity 
                   style={[styles.metricCard, selectedFilter === "cash" && { borderColor: theme.primary, borderWidth: 2 }]}
                   onPress={() => setSelectedFilter("cash")}
                 >
@@ -224,8 +253,8 @@ export const ReportsScreen: React.FC<{ navigation: any }> = ({ navigation }) => 
                 </TouchableOpacity>
 
                 <TouchableOpacity 
-                  style={[styles.metricCard, selectedFilter === "card" && { borderColor: theme.primary, borderWidth: 2 }]}
-                  onPress={() => setSelectedFilter("card")}
+                   style={[styles.metricCard, selectedFilter === "card" && { borderColor: theme.primary, borderWidth: 2 }]}
+                   onPress={() => setSelectedFilter("card")}
                 >
                   <View style={[styles.metricIcon, { backgroundColor: Colors.orange50 }]}>
                     <Ionicons name="card" size={24} color={Colors.orange} />
@@ -233,6 +262,80 @@ export const ReportsScreen: React.FC<{ navigation: any }> = ({ navigation }) => 
                   <Text style={styles.metricLabel}>Card Sales</Text>
                   <Text style={styles.metricValue}>{formatCurrency(reportData?.card_sales || 0, business?.currency)}</Text>
                 </TouchableOpacity>
+
+                <TouchableOpacity 
+                  style={[styles.metricCard, { backgroundColor: Colors.rose50, borderColor: Colors.rose }]}
+                  onPress={() => navigation.navigate("Expenses")}
+                >
+                  <View style={[styles.metricIcon, { backgroundColor: Colors.rose + '10' }]}>
+                    <Ionicons name="receipt" size={24} color={Colors.rose} />
+                  </View>
+                  <Text style={styles.metricLabel}>Expenses</Text>
+                  <Text style={[styles.metricValue, { color: Colors.rose }]}>{formatCurrency((reportData as any)?.total_expenses || 0, business?.currency)}</Text>
+                  <Text style={styles.metricSubtext}>Tap to manage</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity 
+                  style={[styles.metricCard, { backgroundColor: Colors.teal, borderColor: Colors.teal, minWidth: '100%' }]}
+                >
+                  <View style={[styles.metricIcon, { backgroundColor: 'rgba(255,255,255,0.2)' }]}>
+                    <Ionicons name="calculator" size={24} color={Colors.white} />
+                  </View>
+                  <Text style={[styles.metricLabel, { color: Colors.white, opacity: 0.8 }]}>Net Profit</Text>
+                  <Text style={[styles.metricValue, { color: Colors.white }]}>{formatCurrency((reportData as any)?.net_profit || 0, business?.currency)}</Text>
+                  <Text style={[styles.metricSubtext, { color: Colors.white, opacity: 0.6 }]}>After costs & expenses</Text>
+                </TouchableOpacity>
+              </View>
+            )}
+
+            {!isCashier && monthlyFinancials.length > 0 && (
+              <View style={[styles.transactionsCard, { padding: 0, overflow: 'hidden' }]}>
+                <View style={{ padding: 20 }}>
+                  <Text style={[styles.transactionsTitle, { marginTop: 0, marginBottom: 4 }]}>Financial Trends</Text>
+                  <Text style={styles.metricSubtext}>Monthly performance (Revenue vs Profit)</Text>
+                </View>
+                
+                <LineChart
+                  data={{
+                    labels: monthlyFinancials.map(m => m.month.split('-')[1] + '/' + m.month.split('-')[0].slice(2)),
+                    datasets: [
+                      {
+                        data: monthlyFinancials.map(m => m.revenue),
+                        color: (opacity = 1) => `rgba(13, 148, 136, ${opacity})`, // Teal for revenue
+                        strokeWidth: 2
+                      },
+                      {
+                        data: monthlyFinancials.map(m => m.profit),
+                        color: (opacity = 1) => `rgba(16, 185, 129, ${opacity})`, // Green for profit
+                        strokeWidth: 3
+                      }
+                    ],
+                    legend: ["Revenue", "Profit"]
+                  }}
+                  width={Dimensions.get("window").width - 32}
+                  height={220}
+                  chartConfig={{
+                    backgroundColor: "#ffffff",
+                    backgroundGradientFrom: "#ffffff",
+                    backgroundGradientTo: "#ffffff",
+                    decimalPlaces: 0,
+                    color: (opacity = 1) => `rgba(148, 163, 184, ${opacity})`,
+                    labelColor: (opacity = 1) => `rgba(100, 116, 139, ${opacity})`,
+                    style: {
+                      borderRadius: 16
+                    },
+                    propsForDots: {
+                      r: "4",
+                      strokeWidth: "2",
+                      stroke: "#ffffff"
+                    }
+                  }}
+                  bezier
+                  style={{
+                    marginVertical: 8,
+                    borderRadius: 16
+                  }}
+                />
               </View>
             )}
 
@@ -260,6 +363,10 @@ export const ReportsScreen: React.FC<{ navigation: any }> = ({ navigation }) => 
                   
                   <View style={styles.summaryTable}>
                     <View style={styles.summaryRow}>
+                      <Text style={styles.summaryLabel}>Cost of Goods</Text>
+                      <Text style={styles.summaryValue}>{formatCurrency(reportData?.total_cost || 0, business?.currency)}</Text>
+                    </View>
+                    <View style={styles.summaryRow}>
                       <Text style={styles.summaryLabel}>Transfer Sales</Text>
                       <Text style={styles.summaryValue}>{formatCurrency(reportData?.transfer_sales || 0, business?.currency)}</Text>
                     </View>
@@ -271,6 +378,26 @@ export const ReportsScreen: React.FC<{ navigation: any }> = ({ navigation }) => 
                     )}
                   </View>
                 </>
+              )}
+
+              {!isCashier && productProfitData.length > 0 && (
+                <View style={{ marginTop: 24 }}>
+                   <Text style={styles.transactionsTitle}>Product Performance</Text>
+                   <View style={styles.summaryTable}>
+                      {productProfitData.slice(0, 5).map((item) => (
+                        <View key={item.product_id} style={styles.summaryRow}>
+                           <View style={{ flex: 1, paddingVertical: 4 }}>
+                              <Text style={styles.summaryLabel}>{item.product_name}</Text>
+                              <Text style={styles.metricSubtext}>{item.total_qty} units sold</Text>
+                           </View>
+                           <View style={{ alignItems: 'flex-end' }}>
+                              <Text style={[styles.summaryValue, { color: Colors.teal }]}>{formatCurrency(item.profit, business?.currency)}</Text>
+                              <Text style={styles.metricSubtext}>Profit</Text>
+                           </View>
+                        </View>
+                      ))}
+                   </View>
+                </View>
               )}
               
               <Text style={[styles.transactionsTitle, { marginTop: 24 }]}>Recent Transactions ({filteredTransactions.length})</Text>

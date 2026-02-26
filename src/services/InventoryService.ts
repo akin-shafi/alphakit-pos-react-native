@@ -50,6 +50,17 @@ export const InventoryService = {
     const endpoint = API_ENDPOINTS.inventory.productById(productId);
     await apiClient.delete(endpoint);
   },
+
+  getInventorySummary: async (): Promise<any> => {
+    const res = await apiClient.get(API_ENDPOINTS.inventory.summary);
+    return res.data;
+  },
+
+  getLowStockProducts: async (): Promise<Product[]> => {
+    const res = await apiClient.get(API_ENDPOINTS.inventory.lowStock);
+    return res.data;
+  },
 };
+
 
 export default InventoryService;

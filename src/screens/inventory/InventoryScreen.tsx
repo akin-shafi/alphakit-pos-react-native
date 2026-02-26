@@ -11,6 +11,7 @@ import { Input } from "../../components/Input"
 import { Button } from "../../components/Button"
 import { ProductDrawer } from "../../components/ProductDrawer"
 import { AuthService } from "../../services/AuthService"
+import { InventoryService } from "../../services/InventoryService"
 import apiClient from "../../services/ApiClient"
 import { Colors, BusinessThemes, getBusinessTheme } from "../../constants/Colors"
 import { Typography } from "../../constants/Typography"
@@ -43,6 +44,24 @@ export const InventoryScreen: React.FC<{ navigation: any; route: any }> = ({ nav
   const [drawerVisible, setDrawerVisible] = useState(false)
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null)
   const [drawerMode, setDrawerMode] = useState<"add" | "edit">("add")
+
+  // Summary State
+  const [inventorySummary, setInventorySummary] = useState<any>(null)
+
+  useEffect(() => {
+    if (business) {
+        fetchSummary()
+    }
+  }, [business?.id])
+
+  const fetchSummary = async () => {
+    try {
+      const resp = await InventoryService.getInventorySummary()
+      setInventorySummary(resp)
+    } catch (e) {
+      console.log('Failed to fetch inventory summary')
+    }
+  }
 
   // Bulk Rounds State
   const [activeRounds, setActiveRounds] = useState<any[]>([])
@@ -247,6 +266,33 @@ export const InventoryScreen: React.FC<{ navigation: any; route: any }> = ({ nav
     return colorMap[catName] || Colors.gray700
   }
 
+  const renderSummaryCards = () => {
+    if (!inventorySummary || !canManage) return null;
+
+    return (
+      <View style={styles.summaryCardsContainer}>
+        <View style={styles.summaryCard}>
+          <Text style={styles.summaryCardLabel}>Stock Worth (Cost)</Text>
+          <Text style={styles.summaryCardValue}>
+            {formatCurrency(inventorySummary.total_purchase_cost, business?.currency)}
+          </Text>
+        </View>
+        <View style={styles.summaryCard}>
+          <Text style={styles.summaryCardLabel}>Expected Revenue</Text>
+          <Text style={styles.summaryCardValue}>
+            {formatCurrency(inventorySummary.total_selling_value, business?.currency)}
+          </Text>
+        </View>
+        <View style={styles.summaryCard}>
+          <Text style={styles.summaryCardLabel}>Potential Profit</Text>
+          <Text style={[styles.summaryCardValue, { color: Colors.teal }]}>
+            {formatCurrency(inventorySummary.potential_profit, business?.currency)}
+          </Text>
+        </View>
+      </View>
+    );
+  };
+
   if (!canManage) {
     const theme = getBusinessTheme(business?.type)
     return (
@@ -389,36 +435,40 @@ export const InventoryScreen: React.FC<{ navigation: any; route: any }> = ({ nav
         }}
         contentContainerStyle={styles.listContent}
         ListHeaderComponent={
-          isIndustrial && activeRounds.length > 0 ? (
-            <View style={styles.industrialSummary}>
-              <View style={styles.summaryTop}>
-                 <Ionicons name="stats-chart" size={18} color={Colors.teal} />
-                 <Text style={styles.summaryTitle}>Active Rounds Overview</Text>
-              </View>
-              <RNScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 12 }}>
-                {activeRounds.map(round => {
-                   const prod = products.find(p => p.id === round.product_id)
-                   return (
-                    <View key={round.id} style={styles.roundMiniCard}>
-                      <Text style={styles.miniCardTitle} numberOfLines={1}>{prod?.name || 'Unknown'}</Text>
-                      <Text style={styles.miniCardValue}>
-                        {round.remaining_volume.toFixed(0)} <Text style={{ fontSize: 10 }}>/ {round.total_volume.toFixed(0)}</Text>
-                      </Text>
-                      <View style={[styles.miniProgressBar, { backgroundColor: Colors.gray100 }]}>
-                         <View style={[styles.miniProgressBar, { backgroundColor: Colors.teal, width: `${(round.remaining_volume / round.total_volume) * 100}%` }]} />
+          <>
+            {renderSummaryCards()}
+            {isIndustrial && activeRounds.length > 0 ? (
+              <View style={styles.industrialSummary}>
+                <View style={styles.summaryTop}>
+                   <Ionicons name="stats-chart" size={18} color={Colors.teal} />
+                   <Text style={styles.summaryTitle}>Active Rounds Overview</Text>
+                </View>
+                <RNScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 12 }}>
+                  {activeRounds.map(round => {
+                     const prod = products.find(p => p.id === round.product_id)
+                     return (
+                      <View key={round.id} style={styles.roundMiniCard}>
+                        <Text style={styles.miniCardTitle} numberOfLines={1}>{prod?.name || 'Unknown'}</Text>
+                        <Text style={styles.miniCardValue}>
+                          {round.remaining_volume.toFixed(0)} <Text style={{ fontSize: 10 }}>/ {round.total_volume.toFixed(0)}</Text>
+                        </Text>
+                        <View style={[styles.miniProgressBar, { backgroundColor: Colors.gray100 }]}>
+                           <View style={[styles.miniProgressBar, { backgroundColor: Colors.teal, width: `${(round.remaining_volume / round.total_volume) * 100}%` }]} />
+                        </View>
                       </View>
-                    </View>
-                   )
-                })}
-              </RNScrollView>
-            </View>
-          ) : null
+                     )
+                  })}
+                </RNScrollView>
+              </View>
+            ) : null}
+          </>
         }
         refreshControl={
           <RefreshControl
             refreshing={inventoryLoading}
             onRefresh={() => {
               refreshData()
+              fetchSummary()
               if (isIndustrial) fetchRounds()
             }}
             colors={[Colors.teal]}
@@ -990,5 +1040,37 @@ const styles = StyleSheet.create({
   },
   iconBtn: {
     padding: 8
+  },
+  summaryCardsContainer: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    padding: 16,
+    backgroundColor: Colors.white,
+    borderRadius: 16,
+    marginBottom: 20,
+    shadowColor: Colors.black,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 10,
+    elevation: 2,
+    borderWidth: 1,
+    borderColor: Colors.gray100,
+    gap: 12,
+  },
+  summaryCard: {
+    flex: 1,
+    alignItems: 'flex-start',
+  },
+  summaryCardLabel: {
+    fontSize: 10,
+    color: Colors.gray500,
+    fontWeight: '600',
+    textTransform: 'uppercase',
+    marginBottom: 4,
+  },
+  summaryCardValue: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: Colors.gray900,
   }
 })
