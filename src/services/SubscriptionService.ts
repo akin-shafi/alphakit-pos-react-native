@@ -110,6 +110,11 @@ export const SubscriptionService = {
     const response = await apiClient.get(`${API_ENDPOINTS.subscription.promoValidate}?code=${code}`);
     return response.data;
   },
+  
+  checkLaunchEligibility: async (planType: string): Promise<{ eligible: boolean; discount_percentage: number }> => {
+    const response = await apiClient.get(`${API_ENDPOINTS.subscription.launchEligibility}?plan_type=${planType}`);
+    return response.data;
+  },
 
   getSavedCards: async (): Promise<PaymentMethod[]> => {
     const response = await apiClient.get(API_ENDPOINTS.subscription.cards);

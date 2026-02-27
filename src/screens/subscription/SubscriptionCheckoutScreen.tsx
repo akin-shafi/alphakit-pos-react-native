@@ -4,6 +4,7 @@ import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert, ActivityIn
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { useSubscription } from "../../contexts/SubscriptionContext";
+import { SubscriptionService } from "../../services/SubscriptionService";
 import { useAuth } from "../../contexts/AuthContext";
 import { Colors } from "../../constants/Colors";
 import { Typography } from "../../constants/Typography";
@@ -16,7 +17,31 @@ export const SubscriptionCheckoutScreen: React.FC<{ navigation: any }> = ({ navi
   
   const [billingCycle, setBillingCycle] = useState<'MONTHLY' | 'QUARTERLY' | 'ANNUAL'>('MONTHLY');
   const [processing, setProcessing] = useState(false);
+  const [launchOffer, setLaunchOffer] = useState<{ eligible: boolean, discount: number } | null>(null);
   const paystackRef = useRef<any>(null);
+
+  // Check Launch Offer Eligibility
+  useEffect(() => {
+    const checkEligibility = async () => {
+        try {
+            const planType = business?.type === 'SERVICE' ? `SERVICE_${billingCycle}` : billingCycle;
+            const data = await SubscriptionService.checkLaunchEligibility(planType as any);
+            if (data.eligible) {
+                setLaunchOffer({ eligible: true, discount: data.discount_percentage });
+            } else {
+                setLaunchOffer(null);
+            }
+        } catch (e) {
+            console.error('Launch eligibility check failed', e);
+        }
+    };
+
+    if (business && (billingCycle === 'QUARTERLY' || billingCycle === 'ANNUAL')) {
+        checkEligibility();
+    } else {
+        setLaunchOffer(null);
+    }
+  }, [billingCycle, business]);
 
   const calculateTotal = () => {
     const basePlan = plans.find(p => p.type === (business?.type === 'SERVICE' ? `SERVICE_${billingCycle}` : billingCycle));
@@ -31,7 +56,13 @@ export const SubscriptionCheckoutScreen: React.FC<{ navigation: any }> = ({ navi
        return acc + (mod ? mod.price * monthMultiplier * discount : 0);
     }, 0);
 
-    return basePrice + modulesTotal;
+    let total = basePrice + modulesTotal;
+
+    if (launchOffer?.eligible) {
+        total = total * (1 - launchOffer.discount / 100);
+    }
+
+    return total;
   };
 
   const handlePay = () => {
@@ -128,6 +159,12 @@ export const SubscriptionCheckoutScreen: React.FC<{ navigation: any }> = ({ navi
           <View style={styles.summaryFooter}>
              <View>
                 <Text style={styles.totalLabel}>TOTAL COMMIT</Text>
+                {launchOffer?.eligible && (
+                    <View style={styles.launchBadge}>
+                        <Ionicons name="sparkles" size={10} color="#b45309" />
+                        <Text style={styles.launchBadgeText}>LAUNCH OFFER ACTIVATED (-{launchOffer.discount}%)</Text>
+                    </View>
+                )}
                 <Text style={styles.totalValue}>{formatCurrency(calculateTotal())}</Text>
              </View>
              <View style={styles.noFeeBadge}>
@@ -346,5 +383,22 @@ const styles = StyleSheet.create({
   payBtnText: { color: Colors.white, fontSize: 16, fontWeight: '900' },
   pciRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 20 },
   pciText: { fontSize: 9, fontWeight: '800', color: 'rgba(255,255,255,0.3)', letterSpacing: 0.5 },
-  legalText: { fontSize: 11, color: Colors.gray400, textAlign: 'center', marginTop: 20, fontStyle: 'italic', paddingHorizontal: 20 }
+  legalText: { fontSize: 11, color: Colors.gray400, textAlign: 'center', marginTop: 20, fontStyle: 'italic', paddingHorizontal: 20 },
+  launchBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#fffbeb',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: '#fde68a',
+    marginVertical: 4,
+    gap: 4,
+  },
+  launchBadgeText: {
+    fontSize: 8,
+    fontWeight: '900',
+    color: '#b45309',
+  },
 });

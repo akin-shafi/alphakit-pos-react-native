@@ -51,6 +51,7 @@ export const API_ENDPOINTS = {
     history: "/subscription/history" as const,
     subscribe: "/subscription/subscribe" as const,
     promoValidate: "/subscription/promo/validate" as const,
+    launchEligibility: "/subscription/promo/launch-eligibility" as const,
     cards: "/subscription/cards" as const,
     chargeSaved: "/subscription/charge-saved" as const,
     deleteCard: (id: string) => `/subscription/cards/${id}` as const,
