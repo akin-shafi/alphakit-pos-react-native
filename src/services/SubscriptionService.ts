@@ -116,6 +116,11 @@ export const SubscriptionService = {
     return response.data;
   },
 
+  getActivePromotion: async (): Promise<any> => {
+    const response = await apiClient.get('/subscription/active-promotion');
+    return response.data;
+  },
+
   getSavedCards: async (): Promise<PaymentMethod[]> => {
     const response = await apiClient.get(API_ENDPOINTS.subscription.cards);
     return response.data;

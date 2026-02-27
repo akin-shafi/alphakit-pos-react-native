@@ -18,6 +18,7 @@ export const SubscriptionCheckoutScreen: React.FC<{ navigation: any }> = ({ navi
   const [billingCycle, setBillingCycle] = useState<'MONTHLY' | 'QUARTERLY' | 'ANNUAL'>('MONTHLY');
   const [processing, setProcessing] = useState(false);
   const [launchOffer, setLaunchOffer] = useState<{ eligible: boolean, discount: number } | null>(null);
+  const [activePromotion, setActivePromotion] = useState<any>(null);
   const paystackRef = useRef<any>(null);
 
   // Check Launch Offer Eligibility
@@ -43,25 +44,38 @@ export const SubscriptionCheckoutScreen: React.FC<{ navigation: any }> = ({ navi
     }
   }, [billingCycle, business]);
 
+  useEffect(() => {
+    const fetchGeneralPromotion = async () => {
+        try {
+            const data = await SubscriptionService.getActivePromotion();
+            setActivePromotion(data);
+        } catch (e) {
+            console.error('Fetch general promotion failed', e);
+        }
+    };
+    fetchGeneralPromotion();
+  }, []);
+
   const calculateTotal = () => {
     const basePlan = plans.find(p => p.type === (business?.type === 'SERVICE' ? `SERVICE_${billingCycle}` : billingCycle));
     const basePrice = basePlan?.price || 0;
     const monthMultiplier = billingCycle === 'ANNUAL' ? 12 : billingCycle === 'QUARTERLY' ? 3 : 1;
-    const discount = billingCycle === 'ANNUAL' ? 0.85 : billingCycle === 'QUARTERLY' ? 0.9 : 1;
-
     const pickedModules = activeModules.map(m => m.module);
     
+    // Default system discounts (10% quarterly, 15% annual)
+    let discount = billingCycle === 'ANNUAL' ? 0.85 : billingCycle === 'QUARTERLY' ? 0.9 : 1;
+    
+    // Override if launch offer applies
+    if (launchOffer?.eligible) {
+        discount = (100 - launchOffer.discount) / 100;
+    }
+
     const modulesTotal = pickedModules.reduce((acc, modType) => {
        const mod = availableModules.find(m => m.type === modType);
        return acc + (mod ? mod.price * monthMultiplier * discount : 0);
     }, 0);
 
-    let total = basePrice + modulesTotal;
-
-    if (launchOffer?.eligible) {
-        total = total * (1 - launchOffer.discount / 100);
-    }
-
+    let total = (basePrice * discount) + modulesTotal;
     return total;
   };
 
@@ -93,8 +107,8 @@ export const SubscriptionCheckoutScreen: React.FC<{ navigation: any }> = ({ navi
           <View style={styles.cycleGrid}>
              {[
                { id: 'MONTHLY', label: 'Monthly', desc: 'Normal Rate' },
-               { id: 'QUARTERLY', label: 'Quarterly', desc: 'Save 10%' },
-               { id: 'ANNUAL', label: 'Annual', desc: 'Save 15%' }
+               { id: 'QUARTERLY', label: 'Quarterly', desc: `Save ${activePromotion ? activePromotion.quarterly_discount : 10}%` },
+               { id: 'ANNUAL', label: 'Annual', desc: `Save ${activePromotion ? activePromotion.annual_discount : 15}%` }
              ].map((cycle) => (
                 <TouchableOpacity 
                   key={cycle.id}
@@ -135,7 +149,7 @@ export const SubscriptionCheckoutScreen: React.FC<{ navigation: any }> = ({ navi
                    </View>
                 </View>
                 <Text style={styles.itemPrice}>
-                   {formatCurrency(plans.find(p => p.type === (business?.type === 'SERVICE' ? `SERVICE_${billingCycle}` : billingCycle))?.price || 0)}
+                   {formatCurrency((plans.find(p => p.type === (business?.type === 'SERVICE' ? `SERVICE_${billingCycle}` : billingCycle))?.price || 0) * (launchOffer?.eligible ? (100 - launchOffer.discount) / 100 : (billingCycle === 'ANNUAL' ? 0.85 : billingCycle === 'QUARTERLY' ? 0.9 : 1)))}
                 </Text>
              </View>
 
@@ -143,7 +157,8 @@ export const SubscriptionCheckoutScreen: React.FC<{ navigation: any }> = ({ navi
              {pickedModules.map((modType) => {
                 const mod = availableModules.find(am => am.type === modType);
                 if (!mod) return null;
-                const price = mod.price * (billingCycle === 'ANNUAL' ? 12 : billingCycle === 'QUARTERLY' ? 3 : 1) * (billingCycle === 'ANNUAL' ? 0.85 : billingCycle === 'QUARTERLY' ? 0.9 : 1);
+                const disc = launchOffer?.eligible ? (100 - launchOffer.discount) / 100 : (billingCycle === 'ANNUAL' ? 0.85 : billingCycle === 'QUARTERLY' ? 0.9 : 1);
+                const price = mod.price * (billingCycle === 'ANNUAL' ? 12 : billingCycle === 'QUARTERLY' ? 3 : 1) * disc;
                 return (
                    <View key={modType} style={styles.summaryRowSmall}>
                       <View style={styles.rowLead}>
