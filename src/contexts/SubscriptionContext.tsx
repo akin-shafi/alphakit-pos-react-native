@@ -65,22 +65,31 @@ export const SubscriptionProvider: React.FC<{ children: React.ReactNode }> = ({ 
         return;
       }
 
-      const [status, pricing] = await Promise.all([
-        SubscriptionService.getStatus(),
-        SubscriptionService.getPricing(),
-      ]);
-      
-      if ("status" in status && status.status === "NONE") {
-        setSubscription(null);
-        setModules([]);
-      } else {
-        const statusData = status as any;
-        setSubscription(statusData.subscription || statusData);
-        setModules(statusData.modules || []);
+      // Fetch status and pricing separately so one failure doesn't block the other
+      try {
+        const status = await SubscriptionService.getStatus();
+        if (status && "status" in status && status.status === "NONE") {
+          setSubscription(null);
+          setModules([]);
+        } else {
+          const statusData = status as any;
+          setSubscription(statusData.subscription || statusData);
+          setModules(statusData.modules || []);
+        }
+      } catch (err) {
+        console.error("Failed to fetch subscription status:", err);
       }
-      setPlans(pricing.plans);
-      setAvailableModules(pricing.modules || []);
-      setAvailableBundles(pricing.bundles || []);
+
+      try {
+        const pricing = await SubscriptionService.getPricing();
+        if (pricing) {
+          setPlans(pricing.plans || []);
+          setAvailableModules(pricing.modules || []);
+          setAvailableBundles(pricing.bundles || []);
+        }
+      } catch (err) {
+        console.error("Failed to fetch pricing:", err);
+      }
     } catch (error) {
       console.error("Failed to fetch subscription status:", error);
     } finally {

@@ -17,11 +17,14 @@ const Tab = createBottomTabNavigator()
 
 export const MainTabs = () => {
   const insets = useSafeAreaInsets()
-  const { user } = useAuth()
+  const { user, business } = useAuth()
   const { hasModule } = useSubscription()
   
   const roleKey = (user?.role?.toLowerCase() || "") as any
   const permissions = RolePermissions[roleKey as keyof typeof RolePermissions]
+
+  const bizType = business?.type?.toUpperCase() || ''
+  const isLPGOrFuel = bizType.includes('LPG') || bizType.includes('FUEL')
   return (
     <Tab.Navigator
       screenOptions={{
@@ -67,12 +70,12 @@ export const MainTabs = () => {
         />
       )}
       
-      {permissions?.canManageInventory && (
+      {permissions?.canManageInventory && (!isLPGOrFuel || hasModule("BULK_STOCK_MANAGEMENT")) && (
         <Tab.Screen
           name="Inventory"
           component={InventoryScreen}
           options={{
-            tabBarLabel: "Inventory",
+            tabBarLabel: isLPGOrFuel ? "Bulk Inv" : "Inventory",
             tabBarIcon: ({ color, size }) => (
               <Ionicons name="cube-outline" size={size} color={color} />
             ),

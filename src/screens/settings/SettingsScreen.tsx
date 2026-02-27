@@ -82,6 +82,7 @@ export const SettingsScreen: React.FC<{ navigation: any }> = ({ navigation }) =>
 
   return (
     <View style={styles.container}>
+      {/* Header */}
       <View style={styles.header}>
         <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
           <View>
@@ -156,6 +157,14 @@ export const SettingsScreen: React.FC<{ navigation: any }> = ({ navigation }) =>
                     label="Subscription"
                     subtitle="Manage plans & billing"
                     onPress={() => navigation.navigate("SubscriptionPlans")}
+                    iconColor={theme.primary}
+                    iconBg={theme.primaryLight}
+                  />
+                  <MenuButton
+                    icon="receipt"
+                    label="Payment History"
+                    subtitle="View past payments & receipts"
+                    onPress={() => navigation.navigate("SubscriptionHistory")}
                     iconColor={theme.primary}
                     iconBg={theme.primaryLight}
                   />

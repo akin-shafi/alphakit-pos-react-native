@@ -58,7 +58,7 @@ export const ReportsScreen: React.FC<{ navigation: any }> = ({ navigation }) => 
         endDateStr = startDateStr
         // Update metrics
         const data = await ReportService.getDailyReport()
-        setReportData(data)
+        setReportData(data || null)
       } else {
         const now = new Date()
         let start = new Date()
@@ -71,18 +71,18 @@ export const ReportsScreen: React.FC<{ navigation: any }> = ({ navigation }) => 
         endDateStr = now.toISOString().split("T")[0]
         
         const data = await ReportService.getSalesReport(startDateStr, endDateStr)
-        setReportData(data)
+        setReportData(data || null)
       }
 
       // Fetch product performance if owner/manager
       if (!isCashier) {
         const productData = await ReportService.getProductProfitReport(startDateStr, endDateStr)
-        setProductProfitData(productData)
+        setProductProfitData(productData || [])
 
         // Fetch monthly trend
         try {
           const trend = await ReportService.getMonthlyReport(6)
-          setMonthlyFinancials(trend)
+          setMonthlyFinancials(trend || [])
         } catch (chartError) {
           console.log("Could not load chart data", chartError)
         }
@@ -93,7 +93,7 @@ export const ReportsScreen: React.FC<{ navigation: any }> = ({ navigation }) => 
         from: startDateStr,
         to: endDateStr
       })
-      setTransactions(sales)
+      setTransactions(sales || [])
 
     } catch (e) {
       console.error("Failed to fetch report data", e)
@@ -118,7 +118,7 @@ export const ReportsScreen: React.FC<{ navigation: any }> = ({ navigation }) => 
   }
 
   // Filter transactions
-  const filteredTransactions = transactions.filter(t => {
+  const filteredTransactions = (transactions || []).filter(t => {
     const matchesFilter = selectedFilter === "all" || t.paymentMethod?.toLowerCase() === selectedFilter
     const matchesUser = !isCashier || t.userId === user?.id?.toString()
     return matchesFilter && matchesUser
@@ -288,7 +288,7 @@ export const ReportsScreen: React.FC<{ navigation: any }> = ({ navigation }) => 
               </View>
             )}
 
-            {!isCashier && monthlyFinancials.length > 0 && (
+            {!isCashier && monthlyFinancials?.length > 0 && (
               <View style={[styles.transactionsCard, { padding: 0, overflow: 'hidden' }]}>
                 <View style={{ padding: 20 }}>
                   <Text style={[styles.transactionsTitle, { marginTop: 0, marginBottom: 4 }]}>Financial Trends</Text>
@@ -380,7 +380,8 @@ export const ReportsScreen: React.FC<{ navigation: any }> = ({ navigation }) => 
                 </>
               )}
 
-              {!isCashier && productProfitData.length > 0 && (
+
+               {!isCashier && productProfitData?.length > 0 && (
                 <View style={{ marginTop: 24 }}>
                    <Text style={styles.transactionsTitle}>Product Performance</Text>
                    <View style={styles.summaryTable}>
@@ -399,16 +400,53 @@ export const ReportsScreen: React.FC<{ navigation: any }> = ({ navigation }) => 
                    </View>
                 </View>
               )}
+
+               {/* New: Bulk Inventory Section for LPG */}
+               {(business?.type === "LPG_STATION" || business?.type === "gas_station") && selectedPeriod === "today" && reportData && (
+                <View style={styles.bulkReportCard}>
+                  <Text style={[styles.transactionsTitle, { marginTop: 0 }]}>Bulk Stock Performance</Text>
+                  <View style={styles.bulkMetricsRow}>
+                    <View style={styles.bulkMetricItem}>
+                      <Text style={styles.bulkLabel}>Opening Stock</Text>
+                      <Text style={styles.bulkValue}>{(reportData as any).opening_stock?.toFixed(2) || "0.00"} kg</Text>
+                    </View>
+                    <View style={styles.bulkMetricItem}>
+                      <Text style={styles.bulkLabel}>Closing Stock</Text>
+                      <Text style={styles.bulkValue}>{(reportData as any).closing_stock?.toFixed(2) || "0.00"} kg</Text>
+                    </View>
+                  </View>
+                  <View style={styles.bulkDivider} />
+                  <View style={styles.bulkMetricsRow}>
+                    <View style={styles.bulkMetricItem}>
+                      <Text style={styles.bulkLabel}>Stock Purchased (+)</Text>
+                      <Text style={[styles.bulkValue, { color: Colors.teal }]}>+{(reportData as any).stock_purchased?.toFixed(2) || "0.00"} kg</Text>
+                    </View>
+                    <View style={styles.bulkMetricItem}>
+                      <Text style={styles.bulkLabel}>Stock Sold (-)</Text>
+                      <Text style={[styles.bulkValue, { color: Colors.error }]}>-{(reportData as any).stock_sold?.toFixed(2) || "0.00"} kg</Text>
+                    </View>
+                  </View>
+                  <View style={styles.varianceBox}>
+                    <Text style={styles.varianceLabel}>Daily Variance (Surplus/Shortage)</Text>
+                    <Text style={[
+                        styles.varianceValue, 
+                        { color: Math.abs((reportData as any).stock_variance || 0) > 0.1 ? Colors.error : Colors.success }
+                    ]}>
+                      {((reportData as any).stock_variance || 0).toFixed(2)} kg
+                    </Text>
+                  </View>
+                </View>
+              )}
               
-              <Text style={[styles.transactionsTitle, { marginTop: 24 }]}>Recent Transactions ({filteredTransactions.length})</Text>
+               <Text style={[styles.transactionsTitle, { marginTop: 24 }]}>Recent Transactions ({filteredTransactions?.length || 0})</Text>
 
               <View style={styles.transactionsList}>
-                {filteredTransactions.length === 0 ? (
+                {(filteredTransactions?.length || 0) === 0 ? (
                   <View style={styles.emptyState}>
                      <Text style={styles.emptyText}>No transactions found for this period.</Text>
                   </View>
                 ) : (
-                  filteredTransactions.map((sale) => (
+                  (filteredTransactions || []).map((sale) => (
                     <TouchableOpacity 
                       key={sale.id} 
                       style={styles.transactionRow} 
@@ -677,5 +715,56 @@ const styles = StyleSheet.create({
     fontSize: Typography.base,
     fontWeight: Typography.bold,
     color: Colors.gray900,
+  },
+  bulkReportCard: {
+    marginTop: 24,
+    backgroundColor: Colors.white,
+    borderRadius: 12,
+    padding: 20,
+    borderWidth: 1,
+    borderColor: Colors.teal + '30',
+  },
+  bulkMetricsRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    paddingVertical: 12,
+  },
+  bulkMetricItem: {
+    flex: 1,
+    gap: 4,
+  },
+  bulkLabel: {
+    fontSize: 12,
+    color: Colors.gray500,
+    textTransform: 'uppercase',
+  },
+  bulkValue: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: Colors.gray900,
+  },
+  bulkDivider: {
+    height: 1,
+    backgroundColor: Colors.gray100,
+    marginVertical: 4,
+  },
+  varianceBox: {
+    marginTop: 16,
+    padding: 16,
+    backgroundColor: Colors.gray50,
+    borderRadius: 8,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: Colors.gray200,
+  },
+  varianceLabel: {
+    fontSize: 10,
+    color: Colors.gray500,
+    textTransform: 'uppercase',
+    marginBottom: 4,
+  },
+  varianceValue: {
+    fontSize: Typography.xl,
+    fontWeight: 'bold',
   },
 })

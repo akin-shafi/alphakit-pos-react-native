@@ -128,7 +128,19 @@ export const DashboardScreen: React.FC<{ navigation: any }> = ({ navigation }) =
     
   ]
 
-  const allowedModules = modules.filter(m => permissions && permissions[m.permissionKey])
+  const { hasModule } = useSubscription()
+  const isLPG = business?.type?.includes('LPG_STATION')
+  const hasBulkInv = hasModule('BULK_STOCK_MANAGEMENT')
+
+  const allowedModules = modules.filter(m => {
+    // 1. Check basic permissions
+    if (!permissions || !permissions[m.permissionKey]) return false
+
+    // 2. Hide inventory for LPG stations without bulk module
+    if (m.id === 'inventory' && isLPG && !hasBulkInv) return false
+
+    return true
+  })
 
   const handleModulePress = (module: any) => {
     if (module.params) {

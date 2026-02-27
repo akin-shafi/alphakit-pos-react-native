@@ -44,6 +44,7 @@ export const ProductDrawer: React.FC<ProductDrawerProps> = ({ visible, onClose, 
     category_id: 0,
     sku: "",
     barcode: "",
+    track_by_round: false,
   })
 
   useEffect(() => {
@@ -52,11 +53,12 @@ export const ProductDrawer: React.FC<ProductDrawerProps> = ({ visible, onClose, 
         name: product.name,
         price: product.price.toString(),
         cost: (product.cost || 0).toString(),
-        stock: product.stock.toString(),
-        min_stock: (product.min_stock || 0).toString(),
         category_id: product.category_id,
         sku: product.sku,
         barcode: product.barcode || "",
+        track_by_round: product.track_by_round || false,
+        stock: product.stock.toString(),
+        min_stock: (product.min_stock || 0).toString(),
       })
     } else {
       setFormData({
@@ -68,6 +70,7 @@ export const ProductDrawer: React.FC<ProductDrawerProps> = ({ visible, onClose, 
         category_id: categories[0]?.id || 0,
         sku: "",
         barcode: "",
+        track_by_round: false,
       })
     }
   }, [product, mode, visible, categories])
@@ -85,11 +88,12 @@ export const ProductDrawer: React.FC<ProductDrawerProps> = ({ visible, onClose, 
         name: formData.name,
         price: Number.parseFloat(formData.price) || 0,
         cost: Number.parseFloat(formData.cost) || 0,
-        stock: Number.parseInt(formData.stock) || 0,
-        min_stock: Number.parseInt(formData.min_stock) || 0,
+        stock: Number.parseFloat(formData.stock) || 0,
+        min_stock: Number.parseFloat(formData.min_stock) || 0,
         category_id: formData.category_id,
         sku: formData.sku,
         barcode: formData.barcode,
+        track_by_round: formData.track_by_round,
         active: true,
       })
       onClose()
@@ -183,7 +187,7 @@ export const ProductDrawer: React.FC<ProductDrawerProps> = ({ visible, onClose, 
               <View style={styles.row}>
                 <View style={styles.halfInput}>
                   <Input
-                    label="Stock Quantity *"
+                    label={`Stock Quantity ${formData.track_by_round ? '(KG)' : '*'}`}
                     placeholder="0"
                     value={formData.stock}
                     onChangeText={(text) => setFormData({ ...formData, stock: text })}
@@ -192,7 +196,7 @@ export const ProductDrawer: React.FC<ProductDrawerProps> = ({ visible, onClose, 
                 </View>
                 <View style={styles.halfInput}>
                   <Input
-                    label="Min. Stock"
+                    label={`Min. Stock ${formData.track_by_round ? '(KG)' : ''}`}
                     placeholder="0"
                     value={formData.min_stock}
                     onChangeText={(text) => setFormData({ ...formData, min_stock: text })}
@@ -200,6 +204,27 @@ export const ProductDrawer: React.FC<ProductDrawerProps> = ({ visible, onClose, 
                   />
                 </View>
               </View>
+
+              {/* Bulk Toggle */}
+              <TouchableOpacity 
+                style={styles.bulkToggle}
+                onPress={() => {
+                  setFormData({
+                    ...formData,
+                    track_by_round: !formData.track_by_round
+                  });
+                }}
+              >
+                <View>
+                  <Text style={styles.bulkToggleTitle}>Track by Round (Bulk)</Text>
+                  <Text style={styles.bulkToggleSub}>Enable for Gas/Fuel tracking</Text>
+                </View>
+                <Ionicons 
+                  name={formData.track_by_round ? "checkbox" : "square-outline"} 
+                  size={24} 
+                  color={formData.track_by_round ? Colors.teal : Colors.gray400} 
+                />
+              </TouchableOpacity>
 
               <View>
                 <Text style={styles.label}>Category</Text>
@@ -369,5 +394,24 @@ const styles = StyleSheet.create({
   },
   deleteButton: {
     marginBottom: 0,
+  },
+  bulkToggle: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: 16,
+    backgroundColor: Colors.tealLight,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: Colors.teal,
+  },
+  bulkToggleTitle: {
+    fontSize: Typography.sm,
+    fontWeight: Typography.bold,
+    color: Colors.gray900,
+  },
+  bulkToggleSub: {
+    fontSize: 10,
+    color: Colors.gray500,
   },
 })

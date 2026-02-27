@@ -289,6 +289,7 @@ export const ShiftManagementScreen: React.FC<{ navigation: any }> = ({ navigatio
       <ReadingInputModal 
         visible={readingModalVisible}
         onClose={() => setReadingModalVisible(false)}
+        canSkip={!(business?.type === "LPG_STATION" || business?.type === "gas_station")}
         onSubmit={(reading) => {
             setReadingModalVisible(false);
             if (activeShift) {

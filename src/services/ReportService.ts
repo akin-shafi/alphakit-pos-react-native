@@ -14,6 +14,12 @@ export interface DailyReport {
   total_expenses: number;
   net_profit: number;
   average_sale: number;
+  // Bulk Inventory (LPG)
+  opening_stock?: number;
+  closing_stock?: number;
+  stock_purchased?: number;
+  stock_sold?: number;
+  stock_variance?: number;
 }
 
 export interface SalesReport {
@@ -96,7 +102,7 @@ export const ReportService = {
     if (params.length > 0) endpoint += `?${params.join("&")}`;
     
     const res = await apiClient.get(endpoint);
-    return res.data;
+    return res.data || [];
   },
 
   /**
@@ -104,7 +110,7 @@ export const ReportService = {
    */
   getMonthlyReport: async (months: number = 6): Promise<MonthlySummaryItem[]> => {
     const res = await apiClient.get(`${API_ENDPOINTS.sales.monthlyReport}?months=${months}`);
-    return res.data;
+    return res.data || [];
   },
 
   /**
@@ -119,7 +125,10 @@ export const ReportService = {
     const res = await apiClient.get(endpoint);
     
     // Map backend snake_case to frontend camelCase
-    return res.data.map((item: any) => ({
+    const rawData = res.data;
+    const data = Array.isArray(rawData) ? rawData : (rawData?.sales || []);
+    
+    return data.map((item: any) => ({
       id: item.id.toString(),
       businessId: item.business_id.toString(),
       userId: item.cashier_id.toString(),

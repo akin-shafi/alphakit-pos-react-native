@@ -58,11 +58,29 @@ export const POSHomeScreen: React.FC<{ navigation: any }> = ({ navigation }) => 
       )
       return
     }
+
+    // LPG Staleness Check: Force closure if shift is from previous day
+    if (business?.type === "LPG_STATION" || business?.type === "gas_station") {
+      const shiftStart = new Date(activeShift.start_time).setHours(0, 0, 0, 0);
+      const today = new Date().setHours(0, 0, 0, 0);
+      if (shiftStart < today) {
+        Alert.alert(
+          "Stale Shift Found",
+          "You have an unclosed shift from a previous day. To ensure accurate inventory and variance reports, please close it and record your meter readings before starting today's work.",
+          [
+            { text: "Close Previous Shift", onPress: () => navigation.navigate("ShiftManagement") }
+          ]
+        );
+        return;
+      }
+    }
+
     action()
   }
 
   return (
     <View style={styles.container}>
+      <SubscriptionBanner />
       {/* Header */}
       <View style={styles.header}>
         <View style={styles.headerTop}>
@@ -137,12 +155,20 @@ export const POSHomeScreen: React.FC<{ navigation: any }> = ({ navigation }) => 
               ]} 
               onPress={() => {
                 if (!isOutOfStock) {
-                  const isGasBaseProduct = item.sku === "GAS-UNIT-10G" || item.name.toLowerCase().includes("per 10g");
+                  const isGasBaseProduct = 
+                    item.track_by_round ||
+                    item.sku.startsWith("GAS") || 
+                    item.sku.includes("GAS-UNIT") || 
+                    item.name.toLowerCase().includes("(bulk)") || 
+                    item.name.toLowerCase().includes("gas refill");
+                  
                   const isLPGStation = business?.type === "LPG_STATION" || business?.type === "gas_station";
 
                   if (isLPGStation && isGasBaseProduct) {
-                    setSelectedGasProduct(item);
-                    setGasModalVisible(true);
+                    handleActionWithShiftCheck(() => {
+                        setSelectedGasProduct(item);
+                        setGasModalVisible(true);
+                    });
                   } else {
                     handleActionWithShiftCheck(() => addItem(item));
                   }
@@ -222,12 +248,18 @@ export const POSHomeScreen: React.FC<{ navigation: any }> = ({ navigation }) => 
       <GasSaleModal 
         visible={gasModalVisible}
         onClose={() => setGasModalVisible(false)}
-        onAddToCart={(quantity) => {
+        onAddToCart={(kgQty, perKgPrice) => {
              if (selectedGasProduct) {
-                 handleActionWithShiftCheck(() => addItem(selectedGasProduct, quantity));
+                 handleActionWithShiftCheck(() => addItem({
+                   ...selectedGasProduct,
+                   price: perKgPrice
+                 }, kgQty));
              }
         }}
-        pricePerUnit={selectedGasProduct?.price || 0}
+        pricePerKg={selectedGasProduct?.price || 0}
+        availableStock={selectedGasProduct?.stock || 0}
+        productName={selectedGasProduct?.name}
+        currency={business?.currency}
       />
     </View>
   )

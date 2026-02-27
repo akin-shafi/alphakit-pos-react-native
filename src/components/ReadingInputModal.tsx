@@ -9,10 +9,11 @@ interface ReadingInputModalProps {
   visible: boolean;
   onClose: () => void;
   onSubmit: (reading: number) => void;
-  onSkip: () => void;
+  onSkip?: () => void;
+  canSkip?: boolean;
 }
 
-export const ReadingInputModal: React.FC<ReadingInputModalProps> = ({ visible, onClose, onSubmit, onSkip }) => {
+export const ReadingInputModal: React.FC<ReadingInputModalProps> = ({ visible, onClose, onSubmit, onSkip, canSkip = true }) => {
     const [reading, setReading] = useState('');
 
     useEffect(() => {
@@ -52,16 +53,19 @@ export const ReadingInputModal: React.FC<ReadingInputModalProps> = ({ visible, o
                     />
 
                     <View style={styles.buttonRow}>
-                        <Button 
-                            title="Skip" 
-                            onPress={onSkip} 
-                            variant="outline" 
-                            style={styles.button} 
-                        />
+                        {canSkip && onSkip && (
+                            <Button 
+                                title="Skip" 
+                                onPress={onSkip} 
+                                variant="outline" 
+                                style={styles.button} 
+                            />
+                        )}
                         <Button 
                             title="Submit" 
                             onPress={handleSubmit} 
                             style={styles.button} 
+                            disabled={!reading.trim()}
                         />
                     </View>
                 </View>

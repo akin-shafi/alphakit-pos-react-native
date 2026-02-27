@@ -1,11 +1,10 @@
-
-
 import type React from "react"
 import { useState, useEffect } from "react"
-import { View, Text, StyleSheet, FlatList, TouchableOpacity, Alert, RefreshControl, Modal, ScrollView as RNScrollView } from "react-native"
+import { View, Text, StyleSheet, TouchableOpacity, Alert, Modal, ScrollView as RNScrollView, FlatList } from "react-native"
 import { Ionicons } from "@expo/vector-icons"
 import { useAuth } from "../../contexts/AuthContext"
 import { useInventory } from "../../contexts/InventoryContext"
+import { useSubscription } from "../../contexts/SubscriptionContext"
 import { RolePermissions } from "../../constants/Roles"
 import { Input } from "../../components/Input"
 import { Button } from "../../components/Button"
@@ -13,13 +12,16 @@ import { ProductDrawer } from "../../components/ProductDrawer"
 import { AuthService } from "../../services/AuthService"
 import { InventoryService } from "../../services/InventoryService"
 import apiClient from "../../services/ApiClient"
-import { Colors, BusinessThemes, getBusinessTheme } from "../../constants/Colors"
+import { Colors, getBusinessTheme } from "../../constants/Colors"
 import { Typography } from "../../constants/Typography"
 import { formatCurrency } from "../../utils/Formatter"
 import type { Product } from "../../types"
+import { RetailInventoryView } from "../../components/inventory/RetailInventoryView"
+import { BulkInventoryView } from "../../components/inventory/BulkInventoryView"
 
 export const InventoryScreen: React.FC<{ navigation: any; route: any }> = ({ navigation, route }) => {
   const { business, user } = useAuth()
+  const { hasModule } = useSubscription()
   const { 
     products, 
     categories,
@@ -48,11 +50,16 @@ export const InventoryScreen: React.FC<{ navigation: any; route: any }> = ({ nav
   // Summary State
   const [inventorySummary, setInventorySummary] = useState<any>(null)
 
+  const isLPG = business?.type?.includes('LPG_STATION')
+  const hasBulkModule = hasModule('BULK_STOCK_MANAGEMENT')
+  const showBulkUI = isLPG && hasBulkModule
+  const requiresUpgrade = isLPG && !hasBulkModule
+
   useEffect(() => {
-    if (business) {
+    if (business && !requiresUpgrade) {
         fetchSummary()
     }
-  }, [business?.id])
+  }, [business?.id, requiresUpgrade])
 
   const fetchSummary = async () => {
     try {
@@ -65,13 +72,12 @@ export const InventoryScreen: React.FC<{ navigation: any; route: any }> = ({ nav
 
   // Bulk Rounds State
   const [activeRounds, setActiveRounds] = useState<any[]>([])
-  const isIndustrial = business?.type === 'FUEL_STATION' || business?.type === 'LPG_STATION' || business?.active_modules?.includes('BULK_STOCK_MANAGEMENT')
 
   useEffect(() => {
-    if (isIndustrial) {
+    if (showBulkUI) {
       fetchRounds()
     }
-  }, [isIndustrial])
+  }, [showBulkUI])
 
   const fetchRounds = async () => {
     try {
@@ -102,7 +108,6 @@ export const InventoryScreen: React.FC<{ navigation: any; route: any }> = ({ nav
   useEffect(() => {
     if (route.params?.action === "add") {
       handleAddProduct()
-      // Clear the param after handling it
       navigation.setParams({ action: undefined })
     }
   }, [route.params?.action])
@@ -146,7 +151,6 @@ export const InventoryScreen: React.FC<{ navigation: any; route: any }> = ({ nav
     }
   }
 
-  // Category Handlers
   const handleAddCategory = async () => {
     if (!newCatName.trim()) return
     setLoading(true)
@@ -189,12 +193,7 @@ export const InventoryScreen: React.FC<{ navigation: any; route: any }> = ({ nav
             setLoading(false)
           }
        }}
-    ])
-  }
-
-  const getCategoryName = (categoryId: number) => {
-    const cat = categories.find(c => c.id === categoryId)
-    return cat?.name || "Unknown"
+     ])
   }
 
   const handleOpenRecipe = async (product: Product) => {
@@ -203,7 +202,7 @@ export const InventoryScreen: React.FC<{ navigation: any; route: any }> = ({ nav
     setRecipeLoading(true)
     try {
       const resp = await AuthService.getRecipe(product.id.toString())
-      setRecipeIngredients(resp.ingredients || resp) // Adjust based on API structure
+      setRecipeIngredients(resp.ingredients || resp)
     } catch (e) {
       Alert.alert("Error", "Failed to load recipe")
     } finally {
@@ -220,7 +219,6 @@ export const InventoryScreen: React.FC<{ navigation: any; route: any }> = ({ nav
         ingredient_id: parseInt(selectedIngId),
         quantity: parseFloat(ingQuantity)
       })
-      // Refresh
       const resp = await AuthService.getRecipe(selectedProduct.id.toString())
       setRecipeIngredients(resp.ingredients || resp)
       setSelectedIngId("")
@@ -243,57 +241,8 @@ export const InventoryScreen: React.FC<{ navigation: any; route: any }> = ({ nav
     }
   }
 
-  // Category colors matching reference design
-  const getCategoryColor = (categoryId: number) => {
-    const catName = getCategoryName(categoryId)
-    const colorMap: Record<string, string> = {
-      Bakery: "#FEE2E2",
-      Snacks: "#D1FAE5",
-      Beverages: "#DBEAFE",
-      Dairy: "#FCE7F3",
-    }
-    return colorMap[catName] || Colors.gray100
-  }
-
-  const getCategoryTextColor = (categoryId: number) => {
-    const catName = getCategoryName(categoryId)
-    const colorMap: Record<string, string> = {
-      Bakery: "#991B1B",
-      Snacks: "#065F46",
-      Beverages: "#1E40AF",
-      Dairy: "#831843",
-    }
-    return colorMap[catName] || Colors.gray700
-  }
-
-  const renderSummaryCards = () => {
-    if (!inventorySummary || !canManage) return null;
-
-    return (
-      <View style={styles.summaryCardsContainer}>
-        <View style={styles.summaryCard}>
-          <Text style={styles.summaryCardLabel}>Stock Worth (Cost)</Text>
-          <Text style={styles.summaryCardValue}>
-            {formatCurrency(inventorySummary.total_purchase_cost, business?.currency)}
-          </Text>
-        </View>
-        <View style={styles.summaryCard}>
-          <Text style={styles.summaryCardLabel}>Expected Revenue</Text>
-          <Text style={styles.summaryCardValue}>
-            {formatCurrency(inventorySummary.total_selling_value, business?.currency)}
-          </Text>
-        </View>
-        <View style={styles.summaryCard}>
-          <Text style={styles.summaryCardLabel}>Potential Profit</Text>
-          <Text style={[styles.summaryCardValue, { color: Colors.teal }]}>
-            {formatCurrency(inventorySummary.potential_profit, business?.currency)}
-          </Text>
-        </View>
-      </View>
-    );
-  };
-
-  if (!canManage) {
+  // Handle No Permission or Missing Module
+  if (!canManage || requiresUpgrade) {
     const theme = getBusinessTheme(business?.type)
     return (
       <View style={styles.container}>
@@ -306,12 +255,22 @@ export const InventoryScreen: React.FC<{ navigation: any; route: any }> = ({ nav
         </View>
 
         <View style={styles.noAccess}>
-          <Ionicons name="lock-closed" size={64} color={Colors.gray300} />
-          <Text style={styles.noAccessTitle}>Access Denied</Text>
-          <Text style={styles.noAccessText}>You don't have permission to manage inventory</Text>
+          <Ionicons 
+            name={requiresUpgrade ? "cube-outline" : "lock-closed"} 
+            size={80} 
+            color={Colors.gray200} 
+          />
+          <Text style={styles.noAccessTitle}>
+            {requiresUpgrade ? "Bulk Inventory Required" : "Access Denied"}
+          </Text>
+          <Text style={styles.noAccessText}>
+            {requiresUpgrade 
+              ? "LPG stations require the Bulk Inventory module to manage stock efficiently. Please upgrade your subscription."
+              : "You don't have permission to manage inventory"}
+          </Text>
           <Button 
-            title="Go to Dashboard" 
-            onPress={() => navigation.navigate("Dashboard")}
+            title={requiresUpgrade ? "View Subscriptions" : "Go to Dashboard"} 
+            onPress={() => navigation.navigate(requiresUpgrade ? "Settings" : "Dashboard")}
             style={{ marginTop: 24, paddingHorizontal: 32 }}
             variant="primary"
           />
@@ -327,7 +286,7 @@ export const InventoryScreen: React.FC<{ navigation: any; route: any }> = ({ nav
         <View style={styles.headerTop}>
           <View style={styles.headerLeft}>
             <Text style={styles.businessName}>{business?.name || "Demo Store"}</Text>
-            <Text style={styles.productCount}>{filteredProducts.length} products</Text>
+            <Text style={styles.productCount}>{products.length} products</Text>
           </View>
           <View style={{ flexDirection: 'row', gap: 8, alignItems: 'center' }}>
             <TouchableOpacity 
@@ -336,13 +295,13 @@ export const InventoryScreen: React.FC<{ navigation: any; route: any }> = ({ nav
             >
               <Ionicons name="apps" size={24} color={Colors.teal} />
             </TouchableOpacity>
-            {canManage && (
+            {!showBulkUI && canManage && (
               <TouchableOpacity style={styles.addButton} onPress={handleAddProduct}>
                 <Ionicons name="add" size={24} color={Colors.white} />
                 <Text style={styles.addButtonText}>Add</Text>
               </TouchableOpacity>
             )}
-            {canManage && (
+            {!showBulkUI && canManage && (
               <TouchableOpacity 
                 style={{ padding: 8, backgroundColor: Colors.white, borderRadius: 8, borderWidth: 1, borderColor: Colors.gray200 }} 
                 onPress={() => setCategoryModalVisible(true)}
@@ -353,165 +312,61 @@ export const InventoryScreen: React.FC<{ navigation: any; route: any }> = ({ nav
           </View>
         </View>
 
-        <View style={styles.searchContainer}>
-          <Ionicons name="search" size={20} color={Colors.gray400} style={styles.searchIcon} />
-          <Input
-            placeholder="Search inventory..."
-            value={searchQuery}
-            onChangeText={setSearchQuery}
-            style={styles.searchInput}
-            containerStyle={styles.searchInputContainer}
-          />
-        </View>
+        {!showBulkUI && (
+          <View style={styles.searchContainer}>
+            <Ionicons name="search" size={20} color={Colors.gray400} style={styles.searchIcon} />
+            <Input
+              placeholder="Search inventory..."
+              value={searchQuery}
+              onChangeText={setSearchQuery}
+              style={styles.searchInput}
+              containerStyle={styles.searchInputContainer}
+            />
+          </View>
+        )}
       </View>
 
-      {/* Products List */}
-      <FlatList
-        data={filteredProducts}
-        keyExtractor={(item) => item.id.toString()}
-        renderItem={({ item }) => {
-          const activeRound = activeRounds.find(r => r.product_id === item.id)
-          const isTracked = item.track_by_round
-
-          return (
-            <TouchableOpacity
-              style={styles.productCard}
-              onPress={() => canManage && handleEditProduct(item)}
-              activeOpacity={canManage ? 0.7 : 1}
-            >
-              <View style={styles.productHeader}>
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.productName}>{item.name}</Text>
-                  <View style={{ flexDirection: 'row', gap: 6, alignItems: 'center' }}>
-                     <View style={[styles.categoryBadge, { backgroundColor: getCategoryColor(item.category_id) }]}>
-                        <Text style={[styles.categoryText, { color: getCategoryTextColor(item.category_id) }]}>
-                           {getCategoryName(item.category_id)}
-                        </Text>
-                     </View>
-                     {isTracked && (
-                        <View style={[styles.categoryBadge, { backgroundColor: Colors.teal + '10' }]}>
-                           <Text style={[styles.categoryText, { color: Colors.teal }]}>BULK ROUND</Text>
-                        </View>
-                     )}
-                  </View>
-                </View>
-                <View style={styles.stockSection}>
-                  {isTracked && activeRound ? (
-                    <View style={{ alignItems: 'flex-end' }}>
-                       <Text style={[styles.stockCount, { color: Colors.teal }]}>
-                          {activeRound.remaining_volume.toFixed(2)}
-                       </Text>
-                       <Text style={styles.stockLabel}>{item.unit_of_measure || 'Units'} Left</Text>
-                    </View>
-                  ) : (
-                    <>
-                       <Text style={styles.stockCount}>{item.stock}</Text>
-                       <Text style={styles.stockLabel}>in stock</Text>
-                    </>
-                  )}
-                </View>
-              </View>
-              {isTracked && activeRound && (
-                <View style={styles.roundProgressContainer}>
-                  <View style={styles.progressBarBg}>
-                    <View 
-                      style={[
-                        styles.progressBarFill, 
-                        { width: `${(activeRound.remaining_volume / activeRound.total_volume) * 100}%` }
-                      ]} 
-                    />
-                  </View>
-                  <Text style={styles.progressText}>
-                    {((activeRound.remaining_volume / activeRound.total_volume) * 100).toFixed(1)}% of round remaining
-                  </Text>
-                </View>
-              )}
-              <View style={styles.productFooter}>
-                <Text style={styles.productPrice}>Price: {formatCurrency(item.price, business?.currency)}</Text>
-                <Text style={styles.productSku}>SKU: {item.sku}</Text>
-              </View>
-            </TouchableOpacity>
-          );
-        }}
-        contentContainerStyle={styles.listContent}
-        ListHeaderComponent={
-          <>
-            {renderSummaryCards()}
-            {isIndustrial && activeRounds.length > 0 ? (
-              <View style={styles.industrialSummary}>
-                <View style={styles.summaryTop}>
-                   <Ionicons name="stats-chart" size={18} color={Colors.teal} />
-                   <Text style={styles.summaryTitle}>Active Rounds Overview</Text>
-                </View>
-                <RNScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 12 }}>
-                  {activeRounds.map(round => {
-                     const prod = products.find(p => p.id === round.product_id)
-                     return (
-                      <View key={round.id} style={styles.roundMiniCard}>
-                        <Text style={styles.miniCardTitle} numberOfLines={1}>{prod?.name || 'Unknown'}</Text>
-                        <Text style={styles.miniCardValue}>
-                          {round.remaining_volume.toFixed(0)} <Text style={{ fontSize: 10 }}>/ {round.total_volume.toFixed(0)}</Text>
-                        </Text>
-                        <View style={[styles.miniProgressBar, { backgroundColor: Colors.gray100 }]}>
-                           <View style={[styles.miniProgressBar, { backgroundColor: Colors.teal, width: `${(round.remaining_volume / round.total_volume) * 100}%` }]} />
-                        </View>
-                      </View>
-                     )
-                  })}
-                </RNScrollView>
-              </View>
-            ) : null}
-          </>
-        }
-        refreshControl={
-          <RefreshControl
-            refreshing={inventoryLoading}
-            onRefresh={() => {
-              refreshData()
-              fetchSummary()
-              if (isIndustrial) fetchRounds()
-            }}
-            colors={[Colors.teal]}
-            tintColor={Colors.teal}
-          />
-        }
-        ListEmptyComponent={
-          <View style={styles.empty}>
-            <View style={styles.emptyIconContainer}>
-              <Ionicons name="cube-outline" size={64} color={Colors.gray300} />
-            </View>
-            <Text style={styles.emptyText}>No products found</Text>
-            
-            {canManage && !business?.is_seeded && (
-              <View style={styles.seedContainer}>
-                <Text style={styles.seedText}>
-                  Want to start quickly? Populate your inventory with sample {business?.type || "retail"} data.
-                </Text>
-                <Button
-                  title="Populate Sample Data"
-                  onPress={async () => {
-                    try {
-                      setLoading(true)
-                      await AuthService.seedSampleData(business?.id || 0, business?.type.toUpperCase() || "RETAIL")
-                      await refreshData()
-                      alert("Sample data populated successfully!")
-                    } catch (e) {
-                      alert("Failed to seed data.")
-                    } finally {
-                      setLoading(false)
-                    }
-                  }}
-                  variant="outline"
-                  primaryColor={Colors.teal}
-                  loading={loading}
-                />
-              </View>
-            )}
-          </View>
-        }
-      />
-
-
+      {/* Conditional View Rendering */}
+      {showBulkUI ? (
+        <BulkInventoryView 
+          products={products}
+          activeRounds={activeRounds}
+          business={business}
+          inventoryLoading={inventoryLoading}
+          onRefresh={() => {
+              refreshData();
+              fetchRounds();
+          }}
+          canManage={canManage}
+        />
+      ) : (
+        <RetailInventoryView 
+          products={filteredProducts}
+          categories={categories}
+          business={business}
+          canManage={canManage}
+          inventoryLoading={inventoryLoading}
+          inventorySummary={inventorySummary}
+          onRefresh={() => {
+              refreshData();
+              fetchSummary();
+          }}
+          onEditProduct={handleEditProduct}
+          onSeedData={async () => {
+              try {
+                setLoading(true)
+                await AuthService.seedSampleData(business?.id || 0, business?.type.toUpperCase() || "RETAIL")
+                await refreshData()
+                Alert.alert("Success", "Sample data populated successfully!")
+              } catch (e) {
+                Alert.alert("Error", "Failed to seed data.")
+              } finally {
+                setLoading(false)
+              }
+          }}
+          loading={loading}
+        />
+      )}
 
       <ProductDrawer
         visible={drawerVisible}
@@ -573,7 +428,7 @@ export const InventoryScreen: React.FC<{ navigation: any; route: any }> = ({ nav
               <RNScrollView style={{ flex: 1, paddingHorizontal: 20 }}>
                  <Text style={{ fontSize: 14, fontWeight: '600', color: Colors.gray900, marginBottom: 12 }}>BOM Details</Text>
                  {recipeLoading ? (
-                    <RefreshControl refreshing />
+                    <Text style={{ textAlign: 'center', marginVertical: 20 }}>Loading...</Text>
                  ) : recipeIngredients.length === 0 ? (
                     <Text style={{ textAlign: 'center', color: Colors.gray400, marginVertical: 40 }}>No ingredients set.</Text>
                  ) : (
@@ -631,7 +486,6 @@ export const InventoryScreen: React.FC<{ navigation: any; route: any }> = ({ nav
                         <Text style={{ fontSize: 12, color: Colors.gray500 }}>{formatCurrency(item.price, business?.currency)} • {item.stock} in stock</Text>
                      </TouchableOpacity>
                   )}
-                  contentContainerStyle={{ paddingBottom: 20 }}
                />
             </View>
          </View>
@@ -700,9 +554,6 @@ export const InventoryScreen: React.FC<{ navigation: any; route: any }> = ({ nav
                        )}
                     </View>
                  ))}
-                 {categories.length === 0 && (
-                    <Text style={styles.emptyText}>No categories found.</Text>
-                 )}
               </RNScrollView>
            </View>
         </View>
@@ -723,7 +574,6 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.white,
     borderBottomWidth: 1,
     borderBottomColor: Colors.gray100,
-    minHeight: 160,
   },
   headerTop: {
     flexDirection: "row",
@@ -777,125 +627,77 @@ const styles = StyleSheet.create({
     backgroundColor: "transparent",
     borderWidth: 0,
   },
-  listContent: {
-    padding: 16,
-    paddingBottom: 100,
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.5)",
+    justifyContent: "flex-end",
   },
-  productCard: {
+  modalContent: {
     backgroundColor: Colors.white,
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 12,
-    borderWidth: 1,
-    borderColor: Colors.gray200,
+    borderTopLeftRadius: 32,
+    borderTopRightRadius: 32,
+    padding: 24,
+    maxHeight: "85%",
   },
-  productHeader: {
+  modalHeader: {
     flexDirection: "row",
     justifyContent: "space-between",
-    alignItems: "flex-start",
-    marginBottom: 12,
-  },
-  productName: {
-    fontSize: Typography.lg,
-    fontWeight: Typography.semibold,
-    color: Colors.gray900,
-    marginBottom: 8,
-  },
-  categoryBadge: {
-    paddingHorizontal: 12,
-    paddingVertical: 4,
-    borderRadius: 6,
-    alignSelf: "flex-start",
-  },
-  categoryText: {
-    fontSize: Typography.xs,
-    fontWeight: Typography.medium,
-  },
-  stockSection: {
-    alignItems: "flex-end",
-  },
-  stockCount: {
-    fontSize: 32,
-    fontWeight: Typography.bold,
-    color: Colors.gray900,
-    lineHeight: 36,
-  },
-  stockLabel: {
-    fontSize: Typography.xs,
-    color: Colors.gray500,
-  },
-  productFooter: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-  },
-  productPrice: {
-    fontSize: Typography.sm,
-    color: Colors.gray700,
-  },
-  productSku: {
-    fontSize: Typography.sm,
-    color: Colors.gray500,
-  },
-  empty: {
     alignItems: "center",
-    justifyContent: "center",
-    paddingVertical: 80,
-    paddingHorizontal: 40,
+    marginBottom: 20,
   },
-  emptyIconContainer: {
-    width: 120,
-    height: 120,
-    borderRadius: 60,
-    backgroundColor: Colors.white,
-    alignItems: "center",
-    justifyContent: "center",
-    marginBottom: 24,
-    shadowColor: Colors.black,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 2,
-  },
-  emptyText: {
+  modalTitle: {
     fontSize: Typography.xl,
     fontWeight: Typography.bold,
     color: Colors.gray900,
-    marginBottom: 16,
   },
-  seedContainer: {
+  categoryInputContainer: {
+    flexDirection: "row",
+    gap: 12,
+    marginBottom: 20,
+  },
+  categoryList: {
+    maxHeight: 400,
+  },
+  categoryItem: {
+    flexDirection: "row",
+    justifyContent: "space-between",
     alignItems: "center",
-    marginTop: 16,
-    padding: 24,
-    backgroundColor: Colors.teal + "05",
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: Colors.teal + "20",
-    width: "100%",
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.gray100,
   },
-  seedText: {
+  categoryName: {
     fontSize: Typography.base,
-    color: Colors.gray600,
-    textAlign: "center",
-    marginBottom: 24,
-    lineHeight: 22,
+    color: Colors.gray900,
+  },
+  categoryActions: {
+    flexDirection: "row",
+    gap: 12,
+  },
+  editContainer: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  iconBtn: {
+    padding: 4,
   },
   deniedHeader: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    paddingTop: 48,
-    paddingBottom: 16,
-    paddingHorizontal: 16,
-  },
-  headerTitle: {
-    fontSize: Typography.xl,
-    fontWeight: Typography.bold,
-    color: Colors.white,
-    flex: 1,
-    textAlign: "center",
+    paddingTop: 50,
+    paddingBottom: 20,
+    paddingHorizontal: 20,
   },
   backButton: {
     padding: 8,
+  },
+  headerTitle: {
+    color: Colors.white,
+    fontSize: 20,
+    fontWeight: "bold",
   },
   placeholder: {
     width: 40,
@@ -904,173 +706,18 @@ const styles = StyleSheet.create({
     flex: 1,
     alignItems: "center",
     justifyContent: "center",
-    padding: 24,
+    paddingHorizontal: 40,
   },
   noAccessTitle: {
-    fontSize: Typography["2xl"],
-    fontWeight: Typography.bold,
+    fontSize: 24,
+    fontWeight: "bold",
     color: Colors.gray900,
-    marginTop: 24,
-    marginBottom: 8,
+    marginTop: 20,
   },
   noAccessText: {
-    fontSize: Typography.base,
-    color: Colors.gray500,
-    textAlign: 'center',
-  },
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.5)',
-    justifyContent: 'center',
-    padding: 20
-  },
-  modalContent: {
-    backgroundColor: 'white',
-    borderRadius: 16,
-    padding: 20,
-    maxHeight: '80%'
-  },
-  modalHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 20
-  },
-  industrialSummary: {
-    borderRadius: 16,
-    padding: 16,
-    marginBottom: 20,
-    borderWidth: 1,
-    borderColor: Colors.teal + '20',
-    backgroundColor: Colors.teal + '05',
-  },
-  summaryTop: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    marginBottom: 12,
-  },
-  summaryTitle: {
-    fontSize: 14,
-    fontWeight: '800',
-    color: Colors.gray900,
-    textTransform: 'uppercase',
-  },
-  roundMiniCard: {
-    backgroundColor: Colors.white,
-    borderRadius: 12,
-    padding: 12,
-    width: 140,
-    borderWidth: 1,
-    borderColor: Colors.gray100,
-  },
-  miniCardTitle: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: Colors.gray700,
-    marginBottom: 4,
-  },
-  miniCardValue: {
     fontSize: 16,
-    fontWeight: '900',
-    color: Colors.teal,
-    marginBottom: 8,
-  },
-  miniProgressBar: {
-    height: 4,
-    borderRadius: 2,
-  },
-  roundProgressContainer: {
-    marginTop: -8,
-    marginBottom: 12,
-  },
-  progressBarBg: {
-    height: 6,
-    backgroundColor: Colors.gray100,
-    borderRadius: 3,
-    overflow: 'hidden',
-    marginBottom: 4,
-  },
-  progressBarFill: {
-    height: '100%',
-    backgroundColor: Colors.teal,
-    borderRadius: 3,
-  },
-  progressText: {
-    fontSize: 10,
     color: Colors.gray500,
-    fontWeight: '600',
-  },
-  modalTitle: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    color: Colors.gray900
-  },
-  categoryInputContainer: {
-    flexDirection: 'row',
-    gap: 10,
-    alignItems: 'flex-start',
-    marginBottom: 20
-  },
-  categoryList: {
-    maxHeight: 400
-  },
-  categoryItem: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingVertical: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: Colors.gray100
-  },
-  categoryName: {
-    fontSize: 16,
-    color: Colors.gray900,
-    fontWeight: '500'
-  },
-  categoryActions: {
-    flexDirection: 'row',
-    gap: 8
-  },
-  editContainer: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8
-  },
-  iconBtn: {
-    padding: 8
-  },
-  summaryCardsContainer: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    padding: 16,
-    backgroundColor: Colors.white,
-    borderRadius: 16,
-    marginBottom: 20,
-    shadowColor: Colors.black,
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 10,
-    elevation: 2,
-    borderWidth: 1,
-    borderColor: Colors.gray100,
-    gap: 12,
-  },
-  summaryCard: {
-    flex: 1,
-    alignItems: 'flex-start',
-  },
-  summaryCardLabel: {
-    fontSize: 10,
-    color: Colors.gray500,
-    fontWeight: '600',
-    textTransform: 'uppercase',
-    marginBottom: 4,
-  },
-  summaryCardValue: {
-    fontSize: 14,
-    fontWeight: '700',
-    color: Colors.gray900,
+    textAlign: "center",
+    marginTop: 10,
   }
 })

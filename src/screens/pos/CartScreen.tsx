@@ -145,7 +145,9 @@ export const CartScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
       <FlatList
         data={items}
         keyExtractor={(item) => item.product.id.toString()}
-        renderItem={({ item }) => (
+        renderItem={({ item }) => {
+          const isBulk = item.product.track_by_round;
+          return (
           <Card style={styles.cartItem}>
             <View style={styles.itemHeader}>
               <Text style={styles.itemName}>{item.product.name}</Text>
@@ -155,7 +157,9 @@ export const CartScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
             </View>
 
             <View style={styles.itemDetails}>
-              <Text style={styles.itemPrice}>{formatCurrency(item.product.price, business?.currency)}</Text>
+              <Text style={styles.itemPrice}>
+                {isBulk ? `${formatCurrency(item.product.price, business?.currency)}/KG` : formatCurrency(item.product.price, business?.currency)}
+              </Text>
               <View style={styles.quantityControls}>
                 <TouchableOpacity
                   style={styles.quantityButton}
@@ -163,7 +167,10 @@ export const CartScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
                 >
                   <Ionicons name="remove" size={20} color={Colors.gray700} />
                 </TouchableOpacity>
-                <Text style={styles.quantity}>{item.quantity}</Text>
+                <Text style={styles.quantity}>
+                  {item.quantity}
+                  {isBulk && <Text style={{ fontSize: 10, color: Colors.gray500 }}> KG</Text>}
+                </Text>
                 <TouchableOpacity
                   style={styles.quantityButton}
                   onPress={() => updateQuantity(item.product.id, item.quantity + 1)}
@@ -174,7 +181,8 @@ export const CartScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
               <Text style={styles.itemTotal}>{formatCurrency(item.product.price * item.quantity, business?.currency)}</Text>
             </View>
           </Card>
-        )}
+          );
+        }}
         contentContainerStyle={styles.listContent}
       />
 

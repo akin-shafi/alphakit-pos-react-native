@@ -22,7 +22,7 @@ export const AuditLogScreen: React.FC<{ navigation: any }> = ({ navigation }) =>
     try {
       setLoading(true)
       const res = await apiClient.get("/activities")
-      setActivities(res.data)
+      setActivities(res.data || [])
     } catch (e) {
       console.error("Failed to fetch activities", e)
     } finally {

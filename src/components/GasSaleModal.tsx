@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, Modal, StyleSheet, TouchableOpacity } from 'react-native';
+import { View, Text, Modal, StyleSheet, TouchableOpacity, ScrollView } from 'react-native';
 import { Input } from './Input';
 import { Button } from './Button';
 import { Colors } from '../constants/Colors';
@@ -8,15 +8,26 @@ import { Ionicons } from '@expo/vector-icons';
 interface GasSaleModalProps {
   visible: boolean;
   onClose: () => void;
-  onAddToCart: (quantity: number) => void;
-  pricePerUnit: number; // Price per 10g usually
+  onAddToCart: (kgQty: number, pricePerKg: number) => void;
+  pricePerKg: number; // Price per KG (e.g., 1100)
+  availableStock?: number; // Stock in KG directly
+  productName?: string;
+  currency?: string;
 }
 
-export const GasSaleModal: React.FC<GasSaleModalProps> = ({ visible, onClose, onAddToCart, pricePerUnit }) => {
+export const GasSaleModal: React.FC<GasSaleModalProps> = ({ 
+  visible, 
+  onClose, 
+  onAddToCart, 
+  pricePerKg,
+  availableStock = 0,
+  productName = "Gas Refill",
+  currency = "₦"
+}) => {
   const [amount, setAmount] = useState('');
   const [weight, setWeight] = useState('');
+  const availableKg = availableStock; // Stock IS in KG directly
 
-  // Reset fields when opening
   useEffect(() => {
     if (visible) {
         setAmount('');
@@ -24,20 +35,11 @@ export const GasSaleModal: React.FC<GasSaleModalProps> = ({ visible, onClose, on
     }
   }, [visible]);
 
-  // 1 unit = 10g
-  // 1kg = 1000g = 100 units
-  // Price is per unit (10g)
-
   const handleAmountChange = (text: string) => {
     setAmount(text);
     const val = parseFloat(text);
-    if (!isNaN(val) && pricePerUnit > 0) {
-      // Amount -> Units: val / pricePerUnit
-      // Units -> Weight (kg): units * 10 / 1000 = units * 0.01
-      const units = val / pricePerUnit;
-      const kg = units * 0.01;
-      // We format to 2 decimals for display, but keep precision maybe?
-      // Text inputs usually better with fixed decimals to avoid jumping
+    if (!isNaN(val) && pricePerKg > 0) {
+      const kg = val / pricePerKg;
       setWeight(kg.toFixed(2));
     } else {
         setWeight('');
@@ -48,79 +50,130 @@ export const GasSaleModal: React.FC<GasSaleModalProps> = ({ visible, onClose, on
     setWeight(text);
     const val = parseFloat(text);
     if (!isNaN(val)) {
-      // Weight (kg) -> Units: (val * 1000) / 10 = val * 100
-      const units = val * 100;
-      const amt = units * pricePerUnit;
+      const amt = val * pricePerKg;
       setAmount(amt.toFixed(2));
     } else {
         setAmount('');
     }
   };
 
+  const setPresetWeight = (w: number) => {
+    setWeight(w.toString());
+    const amt = w * pricePerKg;
+    setAmount(amt.toFixed(2));
+  };
+
   const handleSubmit = () => {
-      // Calculate quantity based on Amount to ensure price match
-      const val = parseFloat(amount);
-      if (!isNaN(val) && val > 0 && pricePerUnit > 0) {
-          const quantity = Math.floor(val / pricePerUnit);
-          if (quantity > 0) {
-              onAddToCart(quantity);
-              onClose();
-          }
-      } else {
-        // Fallback to weight calculation if amount is empty/invalid but weight is there?
-        // Usually amount is the source of truth for POS sales to match money collected
-        // But if user entered 12.5kg, calculate exact price.
-        const w = parseFloat(weight);
-        if (!isNaN(w) && w > 0) {
-             const quantity = Math.round(w * 100);
-             if (quantity > 0) {
-                 onAddToCart(quantity);
-                 onClose();
-             }
-        }
+      const w = parseFloat(weight);
+      if (!isNaN(w) && w > 0) {
+           if (w > availableKg) {
+               return; 
+           }
+           onAddToCart(w, pricePerKg);
+           onClose();
       }
   };
 
+  const presets = [0.5, 1, 2, 3, 5, 6, 12.5, 25];
+  const isOverStock = (parseFloat(weight) || 0) > availableKg;
+
   return (
-    <Modal visible={visible} transparent animationType="fade">
+    <Modal visible={visible} transparent animationType="slide">
         <View style={styles.overlay}>
             <View style={styles.container}>
                 <View style={styles.header}>
-                    <Text style={styles.title}>Gas Sale Calculator</Text>
-                    <TouchableOpacity onPress={onClose}>
+                    <View>
+                        <Text style={styles.title}>{productName}</Text>
+                        <Text style={styles.subtitle}>Sale Calculator</Text>
+                    </View>
+                    <TouchableOpacity onPress={onClose} style={styles.closeButton}>
                         <Ionicons name="close" size={24} color={Colors.gray500} />
                     </TouchableOpacity>
                 </View>
-                
-                <Text style={styles.rateText}>Rate: ₦{pricePerUnit} / 10g</Text>
 
-                <Input 
-                    label="Amount (₦)"
-                    value={amount}
-                    onChangeText={handleAmountChange}
-                    keyboardType="numeric"
-                    placeholder="e.g. 5000"
-                />
+                <View style={styles.rateCard}>
+                    <View>
+                        <Text style={styles.rateLabel}>RATE PER KG</Text>
+                        <Text style={styles.rateValue}>{currency}{pricePerKg.toLocaleString()}</Text>
+                    </View>
+                    <View style={styles.divider} />
+                    <View>
+                        <Text style={styles.rateLabel}>STOCK</Text>
+                        <Text style={styles.rateValue}>{availableKg.toLocaleString()}kg</Text>
+                    </View>
+                </View>
 
-                <Input 
-                    label="Weight (kg)"
-                    value={weight}
-                    onChangeText={handleWeightChange}
-                    keyboardType="numeric"
-                    placeholder="e.g. 12.5"
-                />
+                <ScrollView showsVerticalScrollIndicator={false}>
+                    <Text style={styles.sectionLabel}>QUICK SELECT</Text>
+                    <View style={styles.presetsGrid}>
+                        {presets.map(w => (
+                            <TouchableOpacity 
+                                key={w} 
+                                disabled={w > availableKg}
+                                onPress={() => setPresetWeight(w)}
+                                style={[
+                                    styles.presetChip,
+                                    parseFloat(weight) === w && styles.presetChipActive,
+                                    (w > availableKg) && styles.presetChipDisabled
+                                ]}
+                            >
+                                <Text style={[
+                                    styles.presetText,
+                                    parseFloat(weight) === w && styles.presetTextActive
+                                ]}>{w}kg</Text>
+                            </TouchableOpacity>
+                        ))}
+                    </View>
 
-                <View style={styles.buttonRow}>
+                    <View style={styles.inputsContainer}>
+                        <View style={styles.inputGroup}>
+                            <Text style={styles.inputLabel}>Weight (KG)</Text>
+                            <View style={[styles.inputWrapper, isOverStock && styles.inputWrapperError]}>
+                                <Input 
+                                    value={weight}
+                                    onChangeText={handleWeightChange}
+                                    keyboardType="numeric"
+                                    placeholder="0.00"
+                                    containerStyle={{marginBottom: 0}}
+                                    inputStyle={styles.bigInput}
+                                />
+                                <Text style={styles.inputUnit}>kg</Text>
+                            </View>
+                            {isOverStock && (
+                                <Text style={styles.errorText}>Insufficient stock available</Text>
+                            )}
+                        </View>
+
+                        <View style={styles.inputGroup}>
+                            <Text style={styles.inputLabel}>Total Price ({currency})</Text>
+                            <View style={styles.inputWrapper}>
+                                <Text style={styles.currencyPrefix}>{currency}</Text>
+                                <Input 
+                                    value={amount}
+                                    onChangeText={handleAmountChange}
+                                    keyboardType="numeric"
+                                    placeholder="0.00"
+                                    containerStyle={{marginBottom: 0}}
+                                    inputStyle={[styles.bigInput, {paddingLeft: 42}]}
+                                />
+                            </View>
+                        </View>
+                    </View>
+                </ScrollView>
+
+                <View style={styles.footer}>
                     <Button 
                         title="Cancel" 
                         onPress={onClose} 
                         variant="outline" 
-                        style={styles.cancelButton} 
+                        style={styles.cancelBtn} 
                     />
                     <Button 
-                        title="Add to Cart" 
+                        title="Add to Sale" 
                         onPress={handleSubmit} 
-                        style={styles.submitButton} 
+                        disabled={isOverStock || !weight || parseFloat(weight) <= 0}
+                        primaryColor={Colors.teal}
+                        style={styles.submitBtn} 
                     />
                 </View>
             </View>
@@ -132,40 +185,161 @@ export const GasSaleModal: React.FC<GasSaleModalProps> = ({ visible, onClose, on
 const styles = StyleSheet.create({
     overlay: {
         flex: 1,
-        backgroundColor: 'rgba(0,0,0,0.5)',
-        justifyContent: 'center',
-        padding: 20,
+        backgroundColor: 'rgba(0,0,0,0.6)',
+        justifyContent: 'flex-end',
     },
     container: {
         backgroundColor: Colors.white,
-        borderRadius: 16,
+        borderTopLeftRadius: 32,
+        borderTopRightRadius: 32,
         padding: 24,
+        maxHeight: '90%',
     },
     header: {
         flexDirection: 'row',
         justifyContent: 'space-between',
         alignItems: 'center',
-        marginBottom: 8,
+        marginBottom: 20,
     },
     title: {
-        fontSize: 20,
+        fontSize: 22,
         fontWeight: 'bold',
         color: Colors.gray900,
     },
-    rateText: {
+    subtitle: {
         fontSize: 14,
-        color: Colors.gray500,
-        marginBottom: 20,
+        color: Colors.teal,
+        fontWeight: '600',
     },
-    buttonRow: {
+    closeButton: {
+        padding: 8,
+        backgroundColor: Colors.gray100,
+        borderRadius: 20,
+    },
+    rateCard: {
         flexDirection: 'row',
-        marginTop: 10,
-        gap: 12,
+        backgroundColor: Colors.tealLight,
+        borderRadius: 20,
+        padding: 16,
+        alignItems: 'center',
+        marginBottom: 24,
     },
-    cancelButton: {
+    rateLabel: {
+        fontSize: 10,
+        color: Colors.teal,
+        fontWeight: 'bold',
+        letterSpacing: 1,
+    },
+    rateValue: {
+        fontSize: 20,
+        fontWeight: 'bold',
+        color: Colors.gray900,
+        marginTop: 2,
+    },
+    divider: {
+        width: 1,
+        height: 30,
+        backgroundColor: 'rgba(0,128,128,0.1)',
+        marginHorizontal: 20,
+    },
+    sectionLabel: {
+        fontSize: 11,
+        fontWeight: 'bold',
+        color: Colors.gray400,
+        letterSpacing: 1.5,
+        marginBottom: 12,
+    },
+    presetsGrid: {
+        flexDirection: 'row',
+        flexWrap: 'wrap',
+        gap: 8,
+        marginBottom: 24,
+    },
+    presetChip: {
+        paddingHorizontal: 16,
+        paddingVertical: 10,
+        borderRadius: 12,
+        backgroundColor: Colors.white,
+        borderWidth: 1,
+        borderColor: Colors.gray200,
+        minWidth: '22%',
+        alignItems: 'center',
+    },
+    presetChipActive: {
+        backgroundColor: Colors.teal,
+        borderColor: Colors.teal,
+    },
+    presetChipDisabled: {
+        opacity: 0.3,
+    },
+    presetText: {
+        fontSize: 13,
+        fontWeight: 'bold',
+        color: Colors.gray700,
+    },
+    presetTextActive: {
+        color: Colors.white,
+    },
+    inputsContainer: {
+        gap: 20,
+        marginBottom: 30,
+    },
+    inputGroup: {
+        gap: 8,
+    },
+    inputLabel: {
+        fontSize: 14,
+        fontWeight: '700',
+        color: Colors.gray700,
+    },
+    inputWrapper: {
+        position: 'relative',
+        justifyContent: 'center',
+    },
+    inputWrapperError: {
+        borderColor: Colors.error,
+    },
+    bigInput: {
+        height: 64,
+        fontSize: 28,
+        fontWeight: 'bold',
+        color: Colors.gray900,
+        backgroundColor: Colors.gray50,
+        borderRadius: 16,
+        borderWidth: 1.5,
+        borderColor: Colors.gray200,
+        paddingHorizontal: 16,
+    },
+    inputUnit: {
+        position: 'absolute',
+        right: 16,
+        fontSize: 18,
+        fontWeight: 'bold',
+        color: Colors.gray400,
+    },
+    currencyPrefix: {
+        position: 'absolute',
+        left: 16,
+        fontSize: 22,
+        fontWeight: 'bold',
+        color: Colors.gray400,
+        zIndex: 2,
+    },
+    errorText: {
+        color: Colors.error,
+        fontSize: 12,
+        fontWeight: 'bold',
+        marginTop: 4,
+    },
+    footer: {
+        flexDirection: 'row',
+        gap: 12,
+        marginTop: 10,
+    },
+    cancelBtn: {
         flex: 1,
     },
-    submitButton: {
+    submitBtn: {
         flex: 1,
     }
 });

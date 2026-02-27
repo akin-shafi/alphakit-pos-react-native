@@ -61,8 +61,8 @@ export default function DetailedReportScreen() {
   const summary = useMemo(() => {
     return {
       totalSales: reportSummary?.total_sales || 0,
-      totalTax: transactions.reduce((sum, txn) => sum + (txn.tax || 0), 0),
-      totalDiscount: reportSummary?.total_sales ? transactions.reduce((sum, txn) => sum + (txn.discount || 0), 0) : 0,
+      totalTax: (transactions || []).reduce((sum, txn) => sum + (txn.tax || 0), 0),
+      totalDiscount: reportSummary?.total_sales ? (transactions || []).reduce((sum, txn) => sum + (txn.discount || 0), 0) : 0,
       transactionCount: reportSummary?.total_transactions || 0,
       averageSale: reportSummary?.average_sale || 0,
     }
@@ -70,7 +70,7 @@ export default function DetailedReportScreen() {
 
   const paginatedData = useMemo(() => {
     const pages = []
-    const data = transactions.length > 0 ? transactions : []
+    const data = (transactions?.length || 0) > 0 ? transactions : []
     for (let i = 0; i < data.length; i += ITEMS_PER_PAGE) {
       pages.push(data.slice(i, i + ITEMS_PER_PAGE))
     }
@@ -82,7 +82,7 @@ export default function DetailedReportScreen() {
   const generatePDFReport = async () => {
     setIsGenerating(true)
     try {
-      const transactionsHTML = transactions
+      const transactionsHTML = (transactions || [])
         .map(
           (txn, index) => `
         <tr style="border-bottom: 1px solid #E5E7EB;">
@@ -143,7 +143,7 @@ export default function DetailedReportScreen() {
               </div>
             </div>
 
-            <h2 style="color: #0D5963; margin-top: 30px;">All Transactions (${transactions.length})</h2>
+            <h2 style="color: #0D5963; margin-top: 30px;">All Transactions (${transactions?.length || 0})</h2>
             <table>
               <thead>
                 <tr>
@@ -161,7 +161,7 @@ export default function DetailedReportScreen() {
 
             <div class="footer">
               <p>${business?.name || "POS Terminal"} - Detailed Sales Report</p>
-              <p>This report contains all ${transactions.length} transactions for the selected period</p>
+              <p>This report contains all ${transactions?.length || 0} transactions for the selected period</p>
             </div>
           </body>
         </html>
