@@ -5,6 +5,7 @@ import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Switch } from "re
 import { Ionicons } from "@expo/vector-icons"
 import { useAuth } from "../../contexts/AuthContext"
 import { usePaymentConfig } from "../../contexts/PaymentConfigContext"
+import { AuthService } from "../../services/AuthService"
 import { Card } from "../../components/Card"
 import { Colors, BusinessThemes, getBusinessTheme } from "../../constants/Colors"
 import { Typography } from "../../constants/Typography"
@@ -109,9 +110,38 @@ export const PaymentSettingsScreen: React.FC<{ navigation: any }> = ({ navigatio
         </View>
 
         <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Automatic Reconciliation</Text>
+          <Text style={styles.sectionDescription}>
+            Stop cashier fraud by requiring the bank to verify every terminal payment before the receipt prints.
+          </Text>
+          <Card style={styles.methodsCard}>
+            <MethodToggle
+              icon="shield-checkmark"
+              label="Verified POS Payments"
+              value={business?.payment_verification_enabled || false}
+              onChange={async (val) => {
+                try {
+                  if (business?.id) {
+                    await AuthService.updateBusiness(business.id, { 
+                      payment_verification_enabled: val 
+                    })
+                    // Refresh profile in context to update the UI
+                    // Note: This assumes currentBusiness in AuthContext will be updated
+                  }
+                } catch (e) {
+                  console.error("Failed to update verification setting", e)
+                }
+              }}
+              color={theme.primary}
+              isLast
+            />
+          </Card>
+        </View>
+
+        <View style={styles.section}>
           <Text style={styles.sectionTitle}>Enabled Payment Methods</Text>
           <Text style={styles.sectionDescription}>Choose which payment methods are available at checkout</Text>
-
+          
           <Card style={styles.methodsCard}>
             <MethodToggle
               icon="cash"

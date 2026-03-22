@@ -64,6 +64,13 @@ export const PaymentMethodSelector: React.FC<PaymentMethodSelectorProps> = ({
       enabled: config.enabledMethods.transfer,
     },
     {
+      id: "split",
+      label: "Split Payment",
+      icon: "git-branch",
+      description: "Mix multiple payment methods",
+      enabled: true,
+    },
+    {
       id: "credit",
       label: "Credit Sale",
       icon: "time",

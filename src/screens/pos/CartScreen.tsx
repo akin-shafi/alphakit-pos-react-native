@@ -6,6 +6,7 @@ import { useAuth } from "../../contexts/AuthContext"
 import { useCart } from "../../contexts/CartContext"
 import { usePaymentConfig } from "../../contexts/PaymentConfigContext"
 import { PaymentMethodSelector } from "../../components/PaymentMethodSelector"
+import { SplitPaymentModal } from "../../components/SplitPaymentModal"
 import { Button } from "../../components/Button"
 import { Card } from "../../components/Card"
 import { Colors, BusinessThemes, getBusinessTheme } from "../../constants/Colors"
@@ -21,6 +22,7 @@ export const CartScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
   const { config } = usePaymentConfig()
   const { enableDrafts, enableTables, enableTax, taxRate } = useSettings()
   const [showPaymentSelector, setShowPaymentSelector] = useState(false)
+  const [showSplitModal, setShowSplitModal] = useState(false)
   const [isProcessing, setIsProcessing] = useState(false)
 
   const theme = getBusinessTheme(business?.type)
@@ -38,7 +40,7 @@ export const CartScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
     if (config.defaultMode === "ask-every-time") {
       setShowPaymentSelector(true)
     } else if (config.defaultMode === "in-app-card") {
-      handleCheckout("card")
+      handleCheckout("CARD")
     } else if (config.defaultMode === "external-terminal") {
       handlePaymentMethodSelect("external-terminal")
     }
@@ -48,10 +50,12 @@ export const CartScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
     setShowPaymentSelector(false)
 
     if (method === "external-terminal") {
-      // Add a small delay to ensure the modal is fully dismissed before navigating.
-      // Modals in React Native can sometimes leave lingering overlays if navigation happens too fast.
       setTimeout(() => {
         navigation.navigate("ExternalTerminal", { provider: provider || "moniepoint" })
+      }, 300)
+    } else if (method === "split") {
+      setTimeout(() => {
+        setShowSplitModal(true)
       }, 300)
     } else {
       handleCheckout(method)
@@ -63,12 +67,12 @@ export const CartScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
       { text: "Cancel", style: "cancel" },
       {
         text: "Confirm",
-        onPress: () => processPayment(paymentMethod),
+        onPress: () => processPayment([{ method: paymentMethod.toUpperCase(), amount: getTotal() }]),
       },
     ])
   }
 
-  const processPayment = async (paymentMethod: string) => {
+  const processPayment = async (payments: any[]) => {
     try {
       setIsProcessing(true)
 
@@ -77,8 +81,11 @@ export const CartScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
           product_id: item.product.id,
           quantity: item.quantity,
         })),
-        payment_method: paymentMethod.toUpperCase(),
-        amount_paid: getTotal(),
+        payments: payments.map(p => ({
+            method: p.method === "card" ? "EXTERNAL_TERMINAL" : p.method, // Normalized for backend
+            amount: p.amount,
+            terminal_provider: p.terminal_provider
+        })),
         tax: getTax(),
         discount: items.reduce((sum, item) => sum + item.discount, 0),
         shift_id: activeShift?.id,
@@ -88,6 +95,8 @@ export const CartScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
 
       // Success! Clear cart and navigate
       clearCart()
+      setShowSplitModal(false)
+      
       navigation.navigate("Checkout", {
         receipt: receiptData.sale,
         items: (receiptData.items || []).map((item: any) => ({
@@ -99,7 +108,8 @@ export const CartScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
           quantity: item.quantity,
           discount: 0,
         })),
-        paymentMethod,
+        paymentMethod: payments.length > 1 ? "SPLIT" : payments[0].method,
+        provider: payments.length === 1 ? payments[0].terminal_provider : null
       })
     } catch (error: any) {
       console.error("Checkout failed:", error)
@@ -272,7 +282,7 @@ export const CartScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
         {config.defaultMode !== "ask-every-time" && (
           <TouchableOpacity style={styles.overrideButton} onPress={() => setShowPaymentSelector(true)}>
             <Ionicons name="swap-horizontal" size={16} color={theme.primary} />
-            <Text style={[styles.overrideText, { color: theme.primary }]}>Choose Different Payment Method</Text>
+            <Text style={[styles.overrideText, { color: theme.primary }]}>Different Payment Method</Text>
           </TouchableOpacity>
         )}
       </View>
@@ -281,6 +291,16 @@ export const CartScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
         visible={showPaymentSelector}
         onClose={() => setShowPaymentSelector(false)}
         onSelect={handlePaymentMethodSelect}
+        config={config}
+        primaryColor={theme.primary}
+      />
+
+      <SplitPaymentModal 
+        visible={showSplitModal}
+        onClose={() => setShowSplitModal(false)}
+        onConfirm={(payments) => processPayment(payments)}
+        total={getTotal()}
+        currency={business?.currency || "$"}
         config={config}
         primaryColor={theme.primary}
       />
@@ -373,10 +393,11 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.white,
     borderTopWidth: 1,
     borderTopColor: Colors.gray200,
-    gap: 16,
+    gap: 12,
   },
   totalsCard: {
     padding: 16,
+    marginBottom: 4,
   },
   totalRow: {
     flexDirection: "row",

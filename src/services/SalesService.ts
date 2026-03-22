@@ -1,10 +1,16 @@
-// src/services/SalesService.ts
-
 import apiClient from "./ApiClient";
 import { API_ENDPOINTS } from "../config/api";
+import API_BASE_URL from "../config/api";
 import type { Sale } from "../types";
 
 export const SalesService = {
+  /**
+   * Get the base API host (without /api/v1)
+   */
+  getApiHost: (): string => {
+    return API_BASE_URL.replace('/api/v1', '');
+  },
+
   /**
    * Create new sale transaction (One-shot)
    * @param payload - Sale creation payload
@@ -62,6 +68,14 @@ export const SalesService = {
    */
   updateItemPreparationStatus: async (saleId: string | number, itemId: string | number, status: string): Promise<any> => {
     const res = await apiClient.patch(`/sales/${saleId}/items/${itemId}/preparation`, { status });
+    return res.data;
+  },
+
+  /**
+   * Check reconciliation status of a pending payment
+   */
+  checkPaymentStatus: async (reference: string): Promise<{ status: string }> => {
+    const res = await apiClient.get(`/reconciliation/status/${reference}`);
     return res.data;
   },
 };

@@ -27,6 +27,8 @@ export const CheckoutScreen: React.FC<{ navigation: any; route: any }> = ({ navi
       const providerNames: Record<string, string> = {
         moniepoint: "MoniePoint",
         opay: "OPay",
+        palmpay: "PalmPay",
+        transfer: "Bank Transfer",
         other: "External Terminal",
       }
       return `${providerNames[provider] || "External Terminal"}`

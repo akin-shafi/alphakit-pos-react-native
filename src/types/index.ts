@@ -39,6 +39,7 @@ export interface Business {
   active_modules?: string[]
   table_management_enabled?: boolean
   save_to_draft_enabled?: boolean
+  payment_verification_enabled?: boolean
   created_at?: string
   updated_at?: string
 }
@@ -161,7 +162,8 @@ export interface Sale {
   total: number
   paymentMethod: "cash" | "card" | "transfer" | "credit" | "external-terminal"
   externalTerminalProvider?: "moniepoint" | "opay" | "other"
-  status: "completed" | "pending" | "voided" | "DRAFT" | "HELD"
+  internal_reference?: string
+  status: "completed" | "pending" | "voided" | "DRAFT" | "HELD" | "PENDING_PAYMENT"
   preparation_status?: PrepStatus
   createdAt: string
   syncStatus: "synced" | "pending" | "failed"
