@@ -2,8 +2,10 @@
 import apiClient from "./ApiClient";
 import { API_ENDPOINTS } from "../config/api";
 
+export type PlanTier = "ESSENTIAL" | "GROWTH" | "SCALE";
+
 export interface SubscriptionPlan {
-  type: "MONTHLY" | "QUARTERLY" | "ANNUAL" | "SERVICE_MONTHLY" | "SERVICE_QUARTERLY" | "SERVICE_ANNUAL";
+  type: string; // Dynamic but follows TIER_CYCLE pattern
   name: string;
   duration_days: number;
   price: number;

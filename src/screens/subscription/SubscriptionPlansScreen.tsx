@@ -20,7 +20,7 @@ import { Colors } from "../../constants/Colors";
 import { Typography } from "../../constants/Typography";
 import { formatCurrency } from "../../utils/Formatter";
 import { Paystack } from "react-native-paystack-webview";
-import { SubscriptionService, PaymentMethod } from "../../services/SubscriptionService";
+import { SubscriptionService, PaymentMethod, PlanTier } from "../../services/SubscriptionService";
 
 const { width } = Dimensions.get('window');
 
@@ -41,6 +41,7 @@ export const SubscriptionPlansScreen: React.FC<{ navigation: any }> = ({ navigat
   const { business, user } = useAuth();
   
   const [billingCycle, setBillingCycle] = useState<'MONTHLY' | 'QUARTERLY' | 'ANNUAL'>('MONTHLY');
+  const [selectedTier, setSelectedTier] = useState<PlanTier>("GROWTH");
   const [selectedModules, setSelectedModules] = useState<string[]>([]);
   
   const [promoCode, setPromoCode] = useState("");
@@ -57,15 +58,10 @@ export const SubscriptionPlansScreen: React.FC<{ navigation: any }> = ({ navigat
   const [checkoutVisible, setCheckoutVisible] = useState(false);
   const paystackRef = useRef<any>(null);
 
-  const [isBasicMode, setIsBasicMode] = useState(false);
-
   // Initialize from current state
   useEffect(() => {
     if (activeModules.length > 0) {
       setSelectedModules(activeModules.map(m => m.module));
-    } else if (business?.type === 'FUEL_STATION' || business?.type === 'LPG_STATION') {
-      // Auto-recommend for gas stations
-      setSelectedModules(['BULK_STOCK_MANAGEMENT']);
     }
 
     if (subscription) {
@@ -74,12 +70,12 @@ export const SubscriptionPlansScreen: React.FC<{ navigation: any }> = ({ navigat
       else if (planType.includes('QUARTERLY')) setBillingCycle('QUARTERLY');
       else setBillingCycle('MONTHLY');
       
-      // Detect if currently on basic plan
-      if (planType.includes('SERVICE')) {
-        setIsBasicMode(true);
-      }
+      // Detect current tier
+      if (planType.includes('ESSENTIAL')) setSelectedTier('ESSENTIAL');
+      else if (planType.includes('SCALE')) setSelectedTier('SCALE');
+      else setSelectedTier('GROWTH');
     }
-  }, [activeModules, subscription, business?.type]);
+  }, [activeModules, subscription]);
 
   useEffect(() => {
     fetchCards();
@@ -110,7 +106,7 @@ export const SubscriptionPlansScreen: React.FC<{ navigation: any }> = ({ navigat
 
     setProcessing(true);
     try {
-      const planType = isBasicMode ? `SERVICE_${billingCycle}` : billingCycle;
+      const planType = `${selectedTier}_${billingCycle}`;
       await processSavedCardSubscription({
         plan_type: planType as any,
         modules: selectedModules,
@@ -146,8 +142,7 @@ export const SubscriptionPlansScreen: React.FC<{ navigation: any }> = ({ navigat
           });
         }
       } else {
-        // If removing a dependency, remove children? 
-        // Example: If removing Inventory, remove Recipe.
+        // If removing a dependency, remove children
         availableModules.forEach(m => {
           if (m.depends_on?.includes(moduleType) && next.includes(m.type)) {
             next = next.filter(mod => mod !== m.type);
@@ -161,12 +156,16 @@ export const SubscriptionPlansScreen: React.FC<{ navigation: any }> = ({ navigat
   };
 
   const calculateTotal = useMemo(() => {
-    const isWithinActivePlan = isSubscribed && subscription?.plan_type === (isBasicMode ? `SERVICE_${billingCycle}` : billingCycle);
-    const currentBasePlan = plans.find(p => p.type === (isBasicMode ? `SERVICE_${billingCycle}` : billingCycle));
-    const basePlanMonthly = plans.find(p => p.type === (isBasicMode ? 'SERVICE_MONTHLY' : 'MONTHLY'));
+    const targetPlanId = `${selectedTier}_${billingCycle}`;
+    const isWithinActivePlan = isSubscribed && subscription?.plan_type === targetPlanId;
     
+    const currentBasePlan = plans.find(p => p.type === targetPlanId);
+    const basePlanMonthly = plans.find(p => p.type === `${selectedTier}_MONTHLY`);
+    
+    // Cycle multipliers for display/fallback
     const monthMultiplier = billingCycle === 'ANNUAL' ? 12 : billingCycle === 'QUARTERLY' ? 3 : 1;
-    const cycleDiscount = billingCycle === 'ANNUAL' ? 0.85 : billingCycle === 'QUARTERLY' ? 0.9 : 1;
+    // 33% discount for modules in annual (pay for 8 months)
+    const modCycleDiscount = billingCycle === 'ANNUAL' ? 0.66 : billingCycle === 'QUARTERLY' ? 0.9 : 1;
     
     // Check which modules are new vs already active
     const activeModTypes = activeModules.map(m => m.module);
@@ -179,7 +178,7 @@ export const SubscriptionPlansScreen: React.FC<{ navigation: any }> = ({ navigat
     let isUpgrade = false;
 
     if (isSubscribed && subscription && !isWithinActivePlan && subscription.plan_type !== 'TRIAL') {
-      // SCENARIO: UPGRADE
+      // SCENARIO: UPGRADE/CHANGE
       const oldPlan = plans.find(p => p.type === subscription.plan_type);
       if (oldPlan && currentBasePlan && currentBasePlan.price > oldPlan.price) {
         isUpgrade = true;
@@ -202,14 +201,13 @@ export const SubscriptionPlansScreen: React.FC<{ navigation: any }> = ({ navigat
       });
     } else {
       // SCENARIO: FRESH START OR RENEWAL OR UPGRADE
-      const basePriceWithCycle = currentBasePlan?.price || 0;
-      finalTotal = basePriceWithCycle;
+      finalTotal = currentBasePlan?.price || ((basePlanMonthly?.price || 0) * (billingCycle === 'ANNUAL' ? 8 : billingCycle === 'QUARTERLY' ? 2.5 : 1));
       originalTotal = (basePlanMonthly?.price || 0) * monthMultiplier;
 
       selectedModules.forEach(modType => {
         const mod = availableModules.find(m => m.type === modType);
         if (mod) {
-          finalTotal += mod.price * monthMultiplier * cycleDiscount;
+          finalTotal += mod.price * monthMultiplier * modCycleDiscount;
           originalTotal += mod.price * monthMultiplier;
         }
       });
@@ -230,13 +228,15 @@ export const SubscriptionPlansScreen: React.FC<{ navigation: any }> = ({ navigat
         originalTotal,
         savings,
         discountPercent: isProratedAddon ? 0 : (Math.round((savings / originalTotal) * 100) || 0),
-        basePlanName: currentBasePlan?.name,
+        basePlanName: currentBasePlan?.name || `${selectedTier} ${billingCycle}`,
         isProratedAddon,
         isUpgrade,
         creditAmount,
-        newModulesCount: newModules.length
+        newModulesCount: newModules.length,
+        userLimit: currentBasePlan?.user_limit || basePlanMonthly?.user_limit || 0,
+        productLimit: currentBasePlan?.product_limit || basePlanMonthly?.product_limit || 0
     };
-  }, [billingCycle, selectedModules, promoDiscount, plans, availableModules, isBasicMode, isSubscribed, subscription, daysRemaining, activeModules]);
+  }, [billingCycle, selectedModules, promoDiscount, plans, availableModules, selectedTier, isSubscribed, subscription, daysRemaining, activeModules]);
 
   if (loading && !subscription) {
     return (
@@ -297,21 +297,29 @@ export const SubscriptionPlansScreen: React.FC<{ navigation: any }> = ({ navigat
 
           {/* Plan Type Toggle */}
           <View style={styles.modeToggleContainer}>
-             <TouchableOpacity 
-               style={[styles.modeButton, !isBasicMode ? styles.modeButtonActive : null]}
-               onPress={() => setIsBasicMode(false)}
-             >
-                <Text style={[styles.modeButtonText, !isBasicMode ? styles.modeButtonTextActive : null]}>Growing Business</Text>
-             </TouchableOpacity>
-             <TouchableOpacity 
-               style={[styles.modeButton, isBasicMode ? styles.modeButtonActive : null]}
-               onPress={() => {
-                   setIsBasicMode(true);
-                   setSelectedModules([]); // Clear modules for basic
-               }}
-             >
-                <Text style={[styles.modeButtonText, isBasicMode ? styles.modeButtonTextActive : null]}>Starter / Basic</Text>
-             </TouchableOpacity>
+             {(['ESSENTIAL', 'GROWTH', 'SCALE'] as PlanTier[]).map((tier) => (
+                <TouchableOpacity 
+                  key={tier}
+                  style={[styles.modeButton, selectedTier === tier ? styles.modeButtonActive : null]}
+                  onPress={() => setSelectedTier(tier)}
+                >
+                   <Text style={[styles.modeButtonText, selectedTier === tier ? styles.modeButtonTextActive : null]}>
+                     {tier === 'ESSENTIAL' ? 'Essential' : tier === 'GROWTH' ? 'Growth' : 'Scale'}
+                   </Text>
+                </TouchableOpacity>
+             ))}
+          </View>
+
+          {/* Plan Limits Info */}
+          <View style={styles.planLimitsInfo}>
+             <View style={styles.limitItem}>
+                <Ionicons name="people-outline" size={14} color={Colors.gray500} />
+                <Text style={styles.limitText}>{calculateTotal.userLimit} Users Max</Text>
+             </View>
+             <View style={styles.limitItem}>
+                <Ionicons name="cube-outline" size={14} color={Colors.gray500} />
+                <Text style={styles.limitText}>{calculateTotal.productLimit.toLocaleString()} Products</Text>
+             </View>
           </View>
 
           {/* 1. Billing Cycle */}
@@ -323,8 +331,8 @@ export const SubscriptionPlansScreen: React.FC<{ navigation: any }> = ({ navigat
           <View style={styles.cycleGrid}>
             {[
               { id: 'MONTHLY', label: 'Monthly', tag: 'Standard', icon: 'calendar-outline' },
-              { id: 'QUARTERLY', label: 'Quarterly', tag: isBasicMode ? '+1 User' : 'Save 10%', icon: 'layers-outline' },
-              { id: 'ANNUAL', label: 'Annual', tag: isBasicMode ? '+3 Users' : 'Save 15%', icon: 'sparkles-outline' }
+              { id: 'QUARTERLY', label: 'Quarterly', tag: 'Save 10%', icon: 'layers-outline' },
+              { id: 'ANNUAL', label: 'Annual', tag: 'Save 33%', icon: 'sparkles-outline' }
             ].map((cycle) => (
               <TouchableOpacity 
                 key={cycle.id}
@@ -346,58 +354,43 @@ export const SubscriptionPlansScreen: React.FC<{ navigation: any }> = ({ navigat
             ))}
           </View>
 
-
-
           {/* 2. Custom Modules */}
           <View style={styles.sectionHeader}>
             <View style={styles.stepCircle}><Text style={styles.stepText}>2</Text></View>
-            <Text style={styles.sectionTitle}>{isBasicMode ? 'Included Features' : 'Custom Add-ons'}</Text>
+            <Text style={styles.sectionTitle}>Custom Add-ons</Text>
           </View>
           
-          {isBasicMode ? (
-              <View style={styles.basicPlanCard}>
-                <View style={styles.basicPlanIcon}>
-                   <Ionicons name="storefront" size={40} color={Colors.teal} />
-                </View>
-                <Text style={styles.basicPlanTitle}>Basic Sales Mode</Text>
-                <Text style={styles.basicPlanDesc}>Perfect for small shops & kiosks. Track sales, print receipts, and manage a small catalog of up to 25 items.</Text>
-                <View style={styles.basicPlanBadge}>
-                   <Ionicons name="shield-checkmark" size={14} color={Colors.teal} />
-                   <Text style={styles.basicPlanBadgeText}>Essential Features Only</Text>
-                </View>
-              </View>
-          ) : (
-            <View style={styles.modulesList}>
-                {availableModules.map((mod) => {
-                  const isSelected = selectedModules.includes(mod.type);
-                  const isRecommended = (mod.type === 'BULK_STOCK_MANAGEMENT') && (business?.type === 'FUEL_STATION' || business?.type === 'LPG_STATION');
+          <View style={styles.modulesList}>
+              {availableModules.map((mod) => {
+                const isSelected = selectedModules.includes(mod.type);
+                const isRecommended = (mod.type === 'BULK_STOCK_MANAGEMENT') && (business?.type === 'FUEL_STATION' || business?.type === 'LPG_STATION');
 
-                  return (
-                    <TouchableOpacity
-                      key={mod.type}
-                      onPress={() => toggleModule(mod.type)}
-                      style={[styles.moduleItem, isSelected && styles.moduleItemActive]}
-                    >
-                      <View style={[styles.checkCircle, isSelected && styles.checkCircleActive]}>
-                        {isSelected && <Ionicons name="checkmark" size={14} color="white" />}
+                return (
+                  <TouchableOpacity
+                    key={mod.type}
+                    onPress={() => toggleModule(mod.type)}
+                    style={[styles.moduleItem, isSelected && styles.moduleItemActive]}
+                  >
+                    <View style={[styles.checkCircle, isSelected && styles.checkCircleActive]}>
+                      {isSelected && <Ionicons name="checkmark" size={14} color="white" />}
+                    </View>
+                    <View style={styles.moduleMainInfo}>
+                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                        <Text style={styles.moduleTitle}>{mod.name}</Text>
+                        {isRecommended && (
+                          <View style={styles.recommendedBadge}>
+                             <Text style={styles.recommendedBadgeText}>Recommended</Text>
+                          </View>
+                        )}
                       </View>
-                      <View style={styles.moduleMainInfo}>
-                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                          <Text style={styles.moduleTitle}>{mod.name}</Text>
-                          {isRecommended && (
-                            <View style={styles.recommendedBadge}>
-                               <Text style={styles.recommendedBadgeText}>Recommended</Text>
-                            </View>
-                          )}
-                        </View>
-                        <Text style={styles.moduleRate}>₦{mod.price.toLocaleString()} / month</Text>
-                      </View>
-                      <Ionicons name="chevron-forward" size={16} color={Colors.gray300} />
-                    </TouchableOpacity>
-                  );
-                })}
-            </View>
-          )}
+                      <Text style={styles.moduleRate}>₦{mod.price.toLocaleString()} / month</Text>
+                    </View>
+                    <Ionicons name="chevron-forward" size={16} color={Colors.gray300} />
+                  </TouchableOpacity>
+                );
+              })}
+          </View>
+
           
           {/* Promo Code Section */}
           <View style={styles.promoSection}>
@@ -533,9 +526,9 @@ export const SubscriptionPlansScreen: React.FC<{ navigation: any }> = ({ navigat
             <Text style={styles.summaryHeading}>Order Summary</Text>
             
             <View style={styles.summaryLine}>
-              <Text style={styles.summaryLabel}>Base Terminal ({billingCycle})</Text>
+              <Text style={styles.summaryLabel}>{selectedTier} Plan ({billingCycle})</Text>
               <Text style={styles.summaryValue}>
-                {formatCurrency(plans.find(p => p.type === (isBasicMode ? `SERVICE_${billingCycle}` : billingCycle))?.price || 0, 'NGN')}
+                {formatCurrency(plans.find(p => p.type === `${selectedTier}_${billingCycle}`)?.price || 0, 'NGN')}
               </Text>
             </View>
 
@@ -713,7 +706,7 @@ export const SubscriptionPlansScreen: React.FC<{ navigation: any }> = ({ navigat
           onSuccess={async (res: any) => {
           try {
             await processSubscription(
-              isBasicMode ? `SERVICE_${billingCycle}` : billingCycle, 
+              `${selectedTier}_${billingCycle}`, 
               res.transactionRef.reference, 
               selectedModules,
               undefined,
@@ -990,6 +983,28 @@ const styles = StyleSheet.create({
     fontSize: 10,
     fontWeight: '900',
     color: Colors.success,
+    textTransform: 'uppercase',
+  },
+  planLimitsInfo: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    gap: 32,
+    marginBottom: 40,
+    backgroundColor: 'white',
+    padding: 24,
+    borderRadius: 32,
+    borderWidth: 1,
+    borderColor: Colors.gray100,
+  },
+  limitItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  limitText: {
+    fontSize: 14,
+    fontWeight: '900',
+    color: Colors.gray900,
     textTransform: 'uppercase',
   },
 });
